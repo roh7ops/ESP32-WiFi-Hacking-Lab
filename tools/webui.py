@@ -636,14 +636,72 @@ print('STATUS:done:' + str(eapol_count))
             for h in hashes:
                 yield f"data: {json.dumps('HASH:' + h)}\n\n"
         else:
-            yield f"data: {json.dumps('[!] Hash non extrait — relancez avec un appareil qui se reconnecte')}\n\n"
-            yield f"data: {json.dumps('[!] Trames capturées : ' + str(len(frames)) + ' (dont beacons nécessaires pour le SSID)')}\n\n"
+            hcx_out = r.stdout + r.stderr
+            missing_m1 = ("does not contain enough EAPOL M1" in hcx_out
+                          or "missing EAPOL M1" in hcx_out
+                          or "no M1" in hcx_out.lower())
+            missing_m3 = ("missing EAPOL M3" in hcx_out
+                          or "no M3" in hcx_out.lower())
+            eapol_count = len([f for f in frames if len(f[1]) > 48])
+            diag = {
+                "missing_m1":   missing_m1,
+                "missing_m3":   missing_m3,
+                "eapol_count":  eapol_count,
+                "total_frames": len(frames),
+                "pcap_path":    str(pcap_path),
+                "bssid":        bssid_s,
+            }
+            yield f"data: {json.dumps('[!] Hash non extrait — handshake incomplet')}\n\n"
+            yield f"data: {json.dumps('DIAG:' + json.dumps(diag))}\n\n"
 
         yield "data: \"__END__\"\n\n"
 
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.route("/api/stream/pmkid_retry_all")
+def stream_pmkid_retry_all():
+    """SSE — Réessaye hcxpcapngtool avec --all sur le pcap existant."""
+    bssid_s   = request.args.get("bssid", "").replace(":", "").lower()
+    cap_dir   = BASE_DIR / "captures"
+    pcap_path = cap_dir / f"pmkid_{bssid_s}.pcap"
+    hash_path = cap_dir / f"pmkid_{bssid_s}.hc22000"
+
+    def generate():
+        if not pcap_path.exists():
+            yield f"data: {json.dumps('[x] Fichier pcap introuvable : ' + str(pcap_path))}\n\n"
+            yield "data: \"__END__\"\n\n"
+            return
+
+        yield f"data: {json.dumps('[*] Tentative hcxpcapngtool --all (accepte paires incomplètes)…')}\n\n"
+        r = subprocess.run(
+            ["hcxpcapngtool", "--all", "-o", str(hash_path), str(pcap_path)],
+            capture_output=True, text=True
+        )
+        for out_line in (r.stdout + r.stderr).splitlines():
+            out_line = out_line.strip()
+            if not out_line:
+                continue
+            if any(k in out_line for k in ("EAPOL", "PMKID", "hash", "pairs", "M1", "M2", "M3", "M4", "written")):
+                yield f"data: {json.dumps('[>] ' + out_line)}\n\n"
+
+        if hash_path.exists() and hash_path.stat().st_size > 0:
+            hashes = hash_path.read_text().strip().splitlines()
+            yield f"data: {json.dumps('[+] ' + str(len(hashes)) + ' hash(es) extrait(s) avec --all !')}\n\n"
+            for h in hashes:
+                yield f"data: {json.dumps('HASH:' + h)}\n\n"
+        else:
+            yield f"data: {json.dumps('[!] Toujours aucun hash — une seule trame EAPOL insuffisante')}\n\n"
+            yield f"data: {json.dumps('[→] Relancez la capture et déconnectez un appareil client pour déclencher un handshake complet')}\n\n"
+
+        yield "data: \"__END__\"\n\n"
+
+    return Response(
+        stream_with_context(generate()), mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 

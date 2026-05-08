@@ -577,6 +577,31 @@
           </div>
         </div>
 
+        <!-- Diagnostic capture incomplète -->
+        <div id="pmkid-diag-card" style="display:none" class="card mb-3">
+          <div class="card-header d-flex align-items-center gap-2"
+               style="background:#1e0e00;border-bottom-color:#f2cc60">
+            <i class="bi bi-exclamation-triangle-fill" style="color:#f2cc60;font-size:16px"></i>
+            <span style="color:#f2cc60;font-weight:600">Handshake incomplet — Capture partielle</span>
+          </div>
+          <div class="card-body" style="font-size:13px">
+            <div id="pmkid-diag-body"></div>
+            <div class="d-flex gap-2 mt-3 flex-wrap">
+              <button class="btn btn-sm" onclick="retryPmkidAll()"
+                      style="background:#2d1f00;border:1px solid #f2cc60;color:#f2cc60">
+                <i class="bi bi-arrow-repeat me-1"></i>Réessayer avec <code style="font-size:11px">--all</code>
+              </button>
+              <button class="btn btn-scan btn-sm" onclick="startPmkidCapture()">
+                <i class="bi bi-record-circle me-1"></i>Nouvelle capture
+              </button>
+              <button class="btn btn-attack btn-sm" onclick="runDeauthForPmkid()"
+                      id="pmkid-deauth-btn" style="display:none">
+                <i class="bi bi-lightning-fill me-1"></i>Déauth + Recapturer
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Hash résultat (masqué jusqu'à capture réussie) -->
         <div id="pmkid-hash-section" style="display:none">
           <div class="card">
@@ -1132,8 +1157,14 @@ function checkPMF(bssid, ch, ssid) {
   }).then(r => r.json()).then(d => {
     if (!d.ok || !d.found) {
       alerts.forEach(id => { document.getElementById(id).style.display = 'none'; });
+      _pmkidTarget.pmf_capable  = false;
+      _pmkidTarget.pmf_required = false;
+      updatePmkidInfo();
       return;
     }
+    _pmkidTarget.pmf_capable  = !!d.pmf_capable;
+    _pmkidTarget.pmf_required = !!d.pmf_required;
+    updatePmkidInfo();
     if (!d.pmf_capable && !d.pmf_required) {
       // Pas de PMF — masquer les alertes
       alerts.forEach(id => { document.getElementById(id).style.display = 'none'; });
@@ -1451,7 +1482,7 @@ function esc(s) {
 }
 
 // ── PMKID Capture via ESP32 ────────────────────────────────────────────────
-let _pmkidTarget = {bssid:'', ch:6, ssid:''};
+let _pmkidTarget = {bssid:'', ch:6, ssid:'', pmf_capable:false, pmf_required:false};
 let _pmkidHashes = [];
 
 function switchTab(name) {
@@ -1473,6 +1504,16 @@ function updatePmkidInfo() {
   document.getElementById('pmkid-info-ssid').textContent  = _pmkidTarget.ssid  || '—';
   document.getElementById('pmkid-info-bssid').textContent = _pmkidTarget.bssid || '—';
   document.getElementById('pmkid-info-ch').textContent    = _pmkidTarget.ch    || '—';
+  const pmfEl = document.getElementById('pmkid-info-pmf');
+  if (!_pmkidTarget.bssid) {
+    pmfEl.innerHTML = '—';
+  } else if (_pmkidTarget.pmf_required) {
+    pmfEl.innerHTML = '<span class="badge" style="background:#ff7b72;color:#000">OBLIGATOIRE</span> <small style="color:#ff7b72">Deauth bloqué</small>';
+  } else if (_pmkidTarget.pmf_capable) {
+    pmfEl.innerHTML = '<span class="badge" style="background:#f2cc60;color:#000">OPTIONNEL</span> <small style="color:#f2cc60">Deauth partiellement efficace</small>';
+  } else {
+    pmfEl.innerHTML = '<span class="badge bg-success">Désactivé</span> <small style="color:#7ee787">Deauth disponible</small>';
+  }
 }
 
 function startPmkidCapture() {
@@ -1480,6 +1521,8 @@ function startPmkidCapture() {
   _pmkidHashes = [];
   switchTab('pmkid');
   termClear('pmkid-terminal');
+  document.getElementById('pmkid-diag-card').style.display = 'none';
+  document.getElementById('pmkid-hash-section').style.display = 'none';
   termLog('pmkid-terminal', '[*] Démarrage capture PMKID sur ' + _pmkidTarget.ssid + ' (' + _pmkidTarget.bssid + ')', 'info');
 
   const url = '/api/stream/pmkid?bssid=' + encodeURIComponent(_pmkidTarget.bssid)
@@ -1502,6 +1545,8 @@ function startPmkidCapture() {
     if (typeof msg === 'string' && msg.startsWith('HASH:')) {
       _pmkidHashes.push(msg.slice(5));
       termLog('pmkid-terminal', '[+] Hash : ' + msg.slice(5).substring(0,40) + '…', 'ok');
+    } else if (typeof msg === 'string' && msg.startsWith('DIAG:')) {
+      try { showHandshakeDiag(JSON.parse(msg.slice(5))); } catch {}
     } else {
       const cls = msg.includes('[+]') ? 'ok' : msg.includes('[x]') ? 'err' : 'info';
       termLog('pmkid-terminal', msg, cls);
@@ -1852,6 +1897,81 @@ function launchHashcat() {
     _hashcatSetRunning(false);
     termLog('pmkid-terminal', '[x] Connexion SSE perdue', 'err');
   };
+}
+
+// ── Diagnostic handshake incomplet ─────────────────────────────────────────
+let _lastPmkidDiag = null;
+
+function showHandshakeDiag(diag) {
+  _lastPmkidDiag = diag;
+  const body = document.getElementById('pmkid-diag-body');
+
+  const issues = [];
+  if (diag.missing_m1)
+    issues.push('<li><strong style="color:#ff7b72">M1 manquant</strong> — l\'AP n\'a pas encore répondu. Le client s\'est connecté mais le nonce de l\'AP n\'était pas présent au moment de la capture.</li>');
+  if (diag.missing_m3)
+    issues.push('<li><strong style="color:#f2cc60">M3 manquant</strong> — confirmation de l\'AP absente. Handshake à moitié capturé.</li>');
+  if (!issues.length)
+    issues.push('<li><strong style="color:#f2cc60">Paires EAPOL insuffisantes</strong> — hcxpcapngtool n\'a pas pu former une paire M1+M2 ou M2+M3 complète.</li>');
+
+  const canDeauth = !_pmkidTarget.pmf_required;
+
+  body.innerHTML = `
+    <p style="color:#f2cc60;margin:0 0 8px">
+      <strong>${diag.eapol_count} trame(s) EAPOL capturée(s)</strong> sur ${diag.total_frames} frames — handshake incomplet.
+    </p>
+    <ul style="color:#cdd9e5;padding-left:18px;margin-bottom:8px">${issues.join('')}</ul>
+    <div style="color:#8b949e;font-size:12px;border-top:1px solid #30363d;padding-top:8px">
+      <strong style="color:#79c0ff">Options :</strong><br>
+      <span>• <em>--all</em> : force hcxpcapngtool à extraire depuis paires incomplètes (possible si M2 seul suffit)</span><br>
+      <span>• <em>Nouvelle capture</em> : relancez et déconnectez/reconnectez un appareil WiFi</span>
+      ${canDeauth ? '<br><span>• <em>Déauth</em> : force la reconnexion automatique (réseau sans PMF obligatoire)</span>' : ''}
+    </div>`;
+
+  document.getElementById('pmkid-diag-card').style.display = '';
+  document.getElementById('pmkid-deauth-btn').style.display = canDeauth ? '' : 'none';
+}
+
+function retryPmkidAll() {
+  const bssid = (_lastPmkidDiag && _lastPmkidDiag.bssid)
+                  || _pmkidTarget.bssid.replace(/:/g, '').toLowerCase();
+  if (!bssid) { alert('Aucun pcap disponible — relancez une capture'); return; }
+
+  termLog('pmkid-terminal', '[*] Tentative --all sur le pcap existant…', 'info');
+
+  const es = new EventSource('/api/stream/pmkid_retry_all?bssid=' + encodeURIComponent(bssid));
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__END__') { es.close(); return; }
+    if (typeof msg === 'string' && msg.startsWith('HASH:')) {
+      _pmkidHashes.push(msg.slice(5));
+      document.getElementById('pmkid-hash-section').style.display = '';
+      document.getElementById('pmkid-hash-box').value = _pmkidHashes.join('\n');
+      parseHashDisplay();
+      document.getElementById('pmkid-diag-card').style.display = 'none';
+      termLog('pmkid-terminal', '[+] Hash extrait avec --all : ' + msg.slice(5).substring(0, 40) + '…', 'ok');
+    } else {
+      const cls = msg.includes('[+]') ? 'ok' : msg.includes('[x]') || msg.includes('[!]') ? 'err' : 'info';
+      termLog('pmkid-terminal', msg, cls);
+    }
+  };
+  es.onerror = () => { es.close(); termLog('pmkid-terminal', '[x] SSE perdu', 'err'); };
+}
+
+function runDeauthForPmkid() {
+  if (!_pmkidTarget.bssid) { alert('Aucune cible sélectionnée'); return; }
+  termLog('pmkid-terminal', '[*] Déauth broadcast → ' + _pmkidTarget.bssid + ' pour forcer reconnexion…', 'info');
+  fetch('/api/deauth/broadcast', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({bssid: _pmkidTarget.bssid, channel: _pmkidTarget.ch, count: 50})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      termLog('pmkid-terminal', '[+] Déauth envoyé (' + (d.sent||'?') + ' trames) — relancement capture…', 'ok');
+      startPmkidCapture();
+    } else {
+      termLog('pmkid-terminal', '[x] Déauth échoué : ' + (d.error || 'erreur'), 'err');
+    }
+  }).catch(e => termLog('pmkid-terminal', '[x] ' + e, 'err'));
 }
 </script>
 
