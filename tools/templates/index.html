@@ -202,6 +202,26 @@
               <span class="text-muted">Injection 802.11</span>
               <span id="s-custom">—</span>
             </div>
+            <hr style="border-color:#30363d;margin:10px 0">
+            <div style="font-size:12px;color:#8b949e;margin-bottom:6px">
+              <i class="bi bi-lightbulb me-1"></i>LED GPIO 2
+            </div>
+            <div class="d-flex flex-wrap gap-1">
+              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#0d1a2e;border:1px solid #1a3a7a;color:#79c0ff"
+                      onclick="setLed('idle')">Idle</button>
+              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#0d1a0d;border:1px solid #238636;color:#7ee787"
+                      onclick="setLed('found')">Found</button>
+              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#1a0e00;border:1px solid #f2cc60;color:#f2cc60"
+                      onclick="setLed('cracking')">Cracking</button>
+              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#1a0000;border:1px solid #ff7b72;color:#ff7b72"
+                      onclick="setLed('error')">Error</button>
+              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#161b22;border:1px solid #444;color:#8b949e"
+                      onclick="setLed('off')">Off</button>
+            </div>
+            <button class="btn btn-sm w-100 mt-2 py-0" style="font-size:11px;background:#21262d;border:1px solid #30363d;color:#cdd9e5"
+                    onclick="fetch('/api/led/test').then(r=>r.json()).then(d=>termLog('scanTerminal','[*] Cycle LED démarré…','info'))">
+              <i class="bi bi-play-circle me-1"></i>Cycle complet (test)
+            </button>
           </div>
         </div>
       </div>
@@ -1005,6 +1025,8 @@ document.querySelectorAll('[data-tab]').forEach(a => {
 });
 
 // ── Statut ESP32 ───────────────────────────────────────────────────────────
+let _esp32WasConnected = false;
+
 function refreshStatus() {
   fetch('/api/status').then(r => r.json()).then(d => {
     const dot = document.getElementById('statusDot');
@@ -1012,9 +1034,14 @@ function refreshStatus() {
     if (d.connected) {
       dot.className = 'status-dot on';
       txt.textContent = 'Connecté';
+      if (!_esp32WasConnected) {
+        _esp32WasConnected = true;
+        setLed('idle');   // déploie le module LED + allume la LED au 1er connect
+      }
     } else {
       dot.className = 'status-dot off';
       txt.textContent = 'Non connecté';
+      _esp32WasConnected = false;
     }
     document.getElementById('s-connected').innerHTML = d.connected
       ? '<span class="badge bg-success">OK</span>'

@@ -55,22 +55,24 @@ app = Flask(__name__)
 
 # ── LED Status ESP32 ──────────────────────────────────────────────────────────
 
-_led_deployed = False   # flag en mémoire (reset au redémarrage du serveur)
+_led_deployed = False   # le fichier est sur le flash ESP32, ce flag évite de re-uploader
 _LED_VALID    = {"off","idle","scanning","capturing","cracking","found","error"}
 
 
 def _led_deploy() -> bool:
-    """Upload led_status.py sur l'ESP32 si pas encore fait."""
+    """Upload led_status.py sur l'ESP32 (toujours, pour s'assurer que c'est à jour)."""
     global _led_deployed
     if _led_deployed:
         return True
     if not LED_MODULE_SRC.exists():
         return False
     try:
+        # Créer /lib si absent
+        mp_exec("import os\ntry:\n os.mkdir('lib')\nexcept OSError:\n pass", timeout=5)
         r = subprocess.run(
             [str(MPREMOTE), "connect", PORT_SERIAL, "fs", "cp",
              str(LED_MODULE_SRC), ":lib/led_status.py"],
-            capture_output=True, timeout=12
+            capture_output=True, timeout=15
         )
         if r.returncode == 0:
             _led_deployed = True
@@ -96,6 +98,18 @@ def api_led_set():
         return jsonify({"ok": False, "error": "Mode invalide"}), 400
     _led_set(mode)
     return jsonify({"ok": True, "mode": mode})
+
+
+@app.route("/api/led/test")
+def api_led_test():
+    """Test rapide : cycle à travers tous les états, 1s chacun."""
+    import time as _time
+    def _cycle():
+        for m in ["scanning", "capturing", "cracking", "found", "idle", "off"]:
+            _led_set(m)
+            _time.sleep(1.2)
+    threading.Thread(target=_cycle, daemon=True).start()
+    return jsonify({"ok": True, "msg": "cycle LED démarré"})
 
 
 # ── Helpers mpremote ──────────────────────────────────────────────────────────

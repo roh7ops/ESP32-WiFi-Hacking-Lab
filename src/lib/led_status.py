@@ -1,98 +1,85 @@
 """
-Indicateur LED de statut — ESP32 WiFi Lab
-Auto-détecte NeoPixel WS2812 (RGB) ou LED simple GPIO 2.
+LED status — ESP32 WiFi Lab
+Par défaut : LED built-in GPIO 2 (ESP32 DevKit v1, active HIGH)
 
-États disponibles (appelables directement) :
-  off()       — éteint
-  idle()      — bleu faible, ESP32 connecté en veille
-  scanning()  — bleu rapide, scan WiFi
-  capturing() — cyan moyen, capture EAPOL
-  cracking()  — orange très rapide, hashcat en cours
-  found()     — vert fixe, mot de passe trouvé !
-  error()     — rouge lent, erreur
+Pour activer NeoPixel WS2812 (ESP32-C3 Super Mini, etc.) :
+  - mettre _NEOPIXEL = True
+  - régler _RGB_PIN selon le board (8 pour ESP32-C3 Super Mini)
 """
 
 from machine import Pin, Timer
 
-# ── Timer logiciel (persiste entre les sessions mpremote) ──────────
+# ── Configuration (à adapter selon le board) ────────────────────────
+_NEOPIXEL = False   # False = LED simple GPIO ; True = WS2812 NeoPixel
+_RGB_PIN  = 8       # pin NeoPixel (ignoré si _NEOPIXEL = False)
+_LED_PIN  = 2       # GPIO LED built-in ESP32 DevKit v1
+_LED_LOW  = False   # True si LED câblée active-LOW (rare sur DevKit v1)
+
+# ── Init ─────────────────────────────────────────────────────────────
 _tim = Timer(-1)
 _bv  = [False, 0, 0, 0]   # [phase, r, g, b]
 
-# ── Détection matérielle ────────────────────────────────────────────
-_np  = None    # NeoPixel si dispo
-_led = None    # LED simple sinon
-
-def _init():
-    global _np, _led
-    if _np is not None or _led is not None:
-        return
+if _NEOPIXEL:
     try:
         from neopixel import NeoPixel as _NP
-        # Essai des pins NeoPixel courants : ESP32-C3=8, S3=48, S2=18
-        for _pin in (8, 48, 18, 38, 10):
-            try:
-                candidate = _NP(Pin(_pin, Pin.OUT), 1)
-                candidate[0] = (0, 0, 0)
-                candidate.write()
-                _np = candidate
-                break
-            except Exception:
-                pass
+        _np  = _NP(Pin(_RGB_PIN, Pin.OUT), 1)
+        _led = None
     except Exception:
-        pass
-    if _np is None:
-        # Fallback : LED bleue GPIO 2 (ESP32 DevKit, active HIGH)
-        _led = Pin(2, Pin.OUT, value=0)
+        _NEOPIXEL = False
+        _np  = None
+        _led = Pin(_LED_PIN, Pin.OUT, value=int(_LED_LOW))
+else:
+    _np  = None
+    _led = Pin(_LED_PIN, Pin.OUT, value=int(_LED_LOW))
 
-_init()
+# ── Primitives ────────────────────────────────────────────────────────
 
-# ── Primitives ──────────────────────────────────────────────────────
-
-def _color(r, g, b):
+def _c(r, g, b):
     if _np:
-        _np[0] = (r, g, b)
-        _np.write()
-    elif _led:
-        _led.value(1 if (r or g or b) else 0)
+        _np[0] = (r, g, b); _np.write()
+    elif _led is not None:
+        on = bool(r or g or b)
+        _led.value(int((not on) if _LED_LOW else on))
 
 def _stop():
     _tim.deinit()
 
 def _solid(r, g, b):
-    _stop()
-    _color(r, g, b)
+    _stop(); _c(r, g, b)
 
-def _blink(r, g, b, ms=300):
+def _blink(r, g, b, ms):
     _stop()
-    _bv[0] = False
-    _bv[1] = r; _bv[2] = g; _bv[3] = b
+    _bv[0] = False; _bv[1] = r; _bv[2] = g; _bv[3] = b
     def _cb(t):
         _bv[0] = not _bv[0]
-        if _bv[0]:
-            _color(_bv[1], _bv[2], _bv[3])
-        else:
-            _color(0, 0, 0)
+        _c(_bv[1], _bv[2], _bv[3]) if _bv[0] else _c(0, 0, 0)
     _tim.init(period=ms, mode=Timer.PERIODIC, callback=_cb)
 
-# ── États publics ───────────────────────────────────────────────────
+# ── États publics ─────────────────────────────────────────────────────
+#   LED simple  → clignotement avec la vitesse indiquée (on/off)
+#   NeoPixel    → même comportement mais avec couleurs
 
-def off():
-    _stop(); _color(0, 0, 0)
+def off():       _stop(); _c(0, 0, 0)          # éteint
+def idle():      _solid(1, 1, 1)               # LED fixe faible (veille)
+def scanning():  _blink(1, 1, 1, 120)          # rapide (scan WiFi)
+def capturing(): _blink(1, 1, 1, 350)          # moyen  (capture EAPOL)
+def cracking():  _blink(1, 1, 1, 80)           # très rapide (hashcat)
+def found():     _solid(1, 1, 1); _stop()      # fixe brillant (trouvé!)
+def error():     _blink(1, 1, 1, 600)          # lent (erreur)
 
-def idle():
-    _solid(0, 0, 8)              # bleu très faible
+# Variantes NeoPixel — utilisées automatiquement si _NEOPIXEL = True
+def _rgb_idle():      _solid(0, 0, 10)
+def _rgb_scanning():  _blink(0, 0, 50, 120)
+def _rgb_capturing(): _blink(0, 30, 30, 350)
+def _rgb_cracking():  _blink(50, 15, 0, 80)
+def _rgb_found():     _solid(0, 60, 0)
+def _rgb_error():     _blink(50, 0, 0, 600)
 
-def scanning():
-    _blink(0, 0, 50, 120)        # bleu rapide
-
-def capturing():
-    _blink(0, 30, 30, 280)       # cyan moyen
-
-def cracking():
-    _blink(50, 15, 0, 80)        # orange très rapide (< 100ms)
-
-def found():
-    _solid(0, 60, 0)             # vert brillant fixe
-
-def error():
-    _blink(60, 0, 0, 500)        # rouge lent
+# Réaffectation si RGB dispo
+if _NEOPIXEL and _np:
+    idle      = _rgb_idle
+    scanning  = _rgb_scanning
+    capturing = _rgb_capturing
+    cracking  = _rgb_cracking
+    found     = _rgb_found
+    error     = _rgb_error
