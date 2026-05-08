@@ -46,3 +46,4 @@ Thumbs.db
 *.pem
 *.env
 config.local.py
+CLAUDE.md
