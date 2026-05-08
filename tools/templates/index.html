@@ -204,23 +204,30 @@
             </div>
             <hr style="border-color:#30363d;margin:10px 0">
             <div style="font-size:12px;color:#8b949e;margin-bottom:6px">
-              <i class="bi bi-lightbulb me-1"></i>LED GPIO 2
+              <i class="bi bi-lightbulb me-1"></i>LED GPIO 2 — test des patterns
             </div>
             <div class="d-flex flex-wrap gap-1">
-              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#0d1a2e;border:1px solid #1a3a7a;color:#79c0ff"
-                      onclick="setLed('idle')">Idle</button>
-              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#0d1a0d;border:1px solid #238636;color:#7ee787"
-                      onclick="setLed('found')">Found</button>
-              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#1a0e00;border:1px solid #f2cc60;color:#f2cc60"
-                      onclick="setLed('cracking')">Cracking</button>
-              <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#1a0000;border:1px solid #ff7b72;color:#ff7b72"
-                      onclick="setLed('error')">Error</button>
+              <button class="btn btn-sm py-0 px-2" title="Double battement / 3s"
+                      style="font-size:11px;background:#0d1a2e;border:1px solid #1a3a7a;color:#79c0ff"
+                      onclick="setLed('idle')">Idle ∿</button>
+              <button class="btn btn-sm py-0 px-2" title="150ms on/off"
+                      style="font-size:11px;background:#0d1a2e;border:1px solid #1a5a9a;color:#79c0ff"
+                      onclick="setLed('scanning')">Scan ▐▌</button>
+              <button class="btn btn-sm py-0 px-2" title="80ms on/off très rapide"
+                      style="font-size:11px;background:#0d1a2e;border:1px solid #1a7aca;color:#79c0ff"
+                      onclick="setLed('cracking')">Crack ▐▌▐▌</button>
+              <button class="btn btn-sm py-0 px-2" title="3 blinks → fixe"
+                      style="font-size:11px;background:#0d1a0d;border:1px solid #238636;color:#7ee787"
+                      onclick="setLed('found')">Found ···—</button>
+              <button class="btn btn-sm py-0 px-2" title="flash court / 900ms"
+                      style="font-size:11px;background:#1a0000;border:1px solid #ff7b72;color:#ff7b72"
+                      onclick="setLed('error')">Erreur .</button>
               <button class="btn btn-sm py-0 px-2" style="font-size:11px;background:#161b22;border:1px solid #444;color:#8b949e"
                       onclick="setLed('off')">Off</button>
             </div>
             <button class="btn btn-sm w-100 mt-2 py-0" style="font-size:11px;background:#21262d;border:1px solid #30363d;color:#cdd9e5"
-                    onclick="fetch('/api/led/test').then(r=>r.json()).then(d=>termLog('scanTerminal','[*] Cycle LED démarré…','info'))">
-              <i class="bi bi-play-circle me-1"></i>Cycle complet (test)
+                    onclick="fetch('/api/led/test').then(r=>r.json()).then(d=>termLog('scanTerminal','[*] Cycle LED démarré — chaque état dure 2s…','info'))">
+              <i class="bi bi-play-circle me-1"></i>Cycle complet (test 2s chacun)
             </button>
           </div>
         </div>
@@ -1945,13 +1952,14 @@ function launchHashcat() {
 // ── LED ESP32 — indicateur physique + visuel navbar ────────────────────────
 
 const _LED_CFG = {
-  off:       { c: '#1a1a2e', s: 'none',                   label: 'OFF',       blink: 0    },
-  idle:      { c: '#1a3a7a', s: '0 0 7px #1a4aaa',        label: 'Veille',    blink: 0    },
-  scanning:  { c: '#2277ff', s: '0 0 10px #2277ff',        label: 'Scan',      blink: 120  },
-  capturing: { c: '#00bbbb', s: '0 0 10px #00bbbb',        label: 'Capture',   blink: 280  },
-  cracking:  { c: '#ff8800', s: '0 0 12px #ff8800',        label: 'Cracking',  blink: 80   },
-  found:     { c: '#00dd44', s: '0 0 14px #00dd44',        label: 'Trouvé !',  blink: 0    },
-  error:     { c: '#ff3333', s: '0 0 10px #ff3333',        label: 'Erreur',    blink: 500  },
+  // blink = période en ms (0 = fixe) — doit correspondre à led_status.py
+  off:       { c: '#1a1a2e', s: 'none',                    label: 'OFF',      blink: 0   },
+  idle:      { c: '#3a6aee', s: '0 0 7px #3a6aee',         label: 'Veille',   blink: 0   },  // heartbeat simulé via CSS
+  scanning:  { c: '#4a9fff', s: '0 0 10px #4a9fff',        label: 'Scan',     blink: 150 },
+  capturing: { c: '#4a9fff', s: '0 0 10px #4a9fff',        label: 'Capture',  blink: 350 },
+  cracking:  { c: '#4a9fff', s: '0 0 14px #6ab8ff',        label: 'Cracking', blink: 80  },
+  found:     { c: '#4a9fff', s: '0 0 16px #88ccff',        label: 'Trouvé !', blink: 0   },
+  error:     { c: '#4a9fff', s: '0 0 8px #4a9fff',         label: 'Erreur',   blink: 900 },
 };
 
 let _ledMode    = 'off';

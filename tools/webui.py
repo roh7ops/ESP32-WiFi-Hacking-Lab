@@ -102,12 +102,11 @@ def api_led_set():
 
 @app.route("/api/led/test")
 def api_led_test():
-    """Test rapide : cycle à travers tous les états, 1s chacun."""
-    import time as _time
+    """Test : cycle à travers tous les états, 2s chacun."""
     def _cycle():
-        for m in ["scanning", "capturing", "cracking", "found", "idle", "off"]:
+        for m in ["idle", "scanning", "capturing", "cracking", "found", "error", "idle"]:
             _led_set(m)
-            _time.sleep(1.2)
+            time.sleep(2)
     threading.Thread(target=_cycle, daemon=True).start()
     return jsonify({"ok": True, "msg": "cycle LED démarré"})
 
