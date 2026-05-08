@@ -41,6 +41,8 @@ VENV_PY       = BASE_DIR / ".venv/bin/python3"
 MPREMOTE      = BASE_DIR / ".venv/bin/mpremote"
 WORDLISTS_DIR = BASE_DIR / "captures" / "wordlists"
 
+LED_MODULE_SRC = BASE_DIR / "src" / "lib" / "led_status.py"
+
 SYSTEM_WORDLISTS = [
     "/usr/share/wordlists/rockyou.txt",
     "/usr/share/wordlists/fasttrack.txt",
@@ -50,6 +52,51 @@ SYSTEM_WORDLISTS = [
 ]
 
 app = Flask(__name__)
+
+# ── LED Status ESP32 ──────────────────────────────────────────────────────────
+
+_led_deployed = False   # flag en mémoire (reset au redémarrage du serveur)
+_LED_VALID    = {"off","idle","scanning","capturing","cracking","found","error"}
+
+
+def _led_deploy() -> bool:
+    """Upload led_status.py sur l'ESP32 si pas encore fait."""
+    global _led_deployed
+    if _led_deployed:
+        return True
+    if not LED_MODULE_SRC.exists():
+        return False
+    try:
+        r = subprocess.run(
+            [str(MPREMOTE), "connect", PORT_SERIAL, "fs", "cp",
+             str(LED_MODULE_SRC), ":lib/led_status.py"],
+            capture_output=True, timeout=12
+        )
+        if r.returncode == 0:
+            _led_deployed = True
+    except Exception:
+        pass
+    return _led_deployed
+
+
+def _led_set(mode: str):
+    """Change l'état LED en tâche de fond — fire and forget."""
+    if mode not in _LED_VALID:
+        return
+    def _run():
+        _led_deploy()
+        mp_exec(f"from lib.led_status import {mode}; {mode}()", timeout=5)
+    threading.Thread(target=_run, daemon=True).start()
+
+
+@app.route("/api/led/set", methods=["POST"])
+def api_led_set():
+    mode = (request.json or {}).get("mode", "idle")
+    if mode not in _LED_VALID:
+        return jsonify({"ok": False, "error": "Mode invalide"}), 400
+    _led_set(mode)
+    return jsonify({"ok": True, "mode": mode})
+
 
 # ── Helpers mpremote ──────────────────────────────────────────────────────────
 
@@ -573,6 +620,7 @@ print('STATUS:done:' + str(eapol_count))
 
     def generate():
         frames = []   # liste de (ts_ms, hex)
+        _led_set("capturing")
         proc = subprocess.Popen(
             [str(MPREMOTE), "connect", PORT_SERIAL, "exec", code],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -635,6 +683,7 @@ print('STATUS:done:' + str(eapol_count))
             yield f"data: {json.dumps('[+] ' + str(len(hashes)) + ' hash(es) extrait(s) !')}\n\n"
             for h in hashes:
                 yield f"data: {json.dumps('HASH:' + h)}\n\n"
+            _led_set("idle")
         else:
             hcx_out = r.stdout + r.stderr
             missing_m1 = ("does not contain enough EAPOL M1" in hcx_out
@@ -653,6 +702,7 @@ print('STATUS:done:' + str(eapol_count))
             }
             yield f"data: {json.dumps('[!] Hash non extrait — handshake incomplet')}\n\n"
             yield f"data: {json.dumps('DIAG:' + json.dumps(diag))}\n\n"
+            _led_set("error")
 
         yield "data: \"__END__\"\n\n"
 
@@ -825,6 +875,7 @@ def api_hashcat_stop():
     if _hashcat_proc and _hashcat_proc.poll() is None:
         _kill_proc(_hashcat_proc)
         _hashcat_proc = None
+        _led_set("idle")
         return jsonify({"ok": True, "msg": "hashcat arrêté"})
     return jsonify({"ok": False, "msg": "Aucun crack en cours"})
 
@@ -857,6 +908,7 @@ def api_hashcat_stream():
         pot_file.unlink(missing_ok=True)
         hash_file.write_text("\n".join(valid_lines) + "\n")
         yield f"data: {json.dumps({'type':'log','msg':f'[*] {len(valid_lines)} hash(es) chargé(s) dans le fichier cible'})}\n\n"
+        _led_set("cracking")
 
         # --status-timer=5 : affiche vitesse/progression toutes les 5 sec
         cmd = ["hashcat", "-m", "22000", str(hash_file), wordlist,
@@ -903,6 +955,7 @@ def api_hashcat_stream():
             if pot_file.exists() and pot_file.stat().st_size > 0:
                 cracked  = pot_file.read_text().strip().splitlines()[-1]
                 password = cracked.split(":")[-1] if ":" in cracked else cracked
+                _led_set("found")
                 yield f"data: {json.dumps({'type':'found','password':password})}\n\n"
 
         if _hashcat_proc is not None:
@@ -913,8 +966,10 @@ def api_hashcat_stream():
         if pot_file.exists() and pot_file.stat().st_size > 0:
             cracked  = pot_file.read_text().strip().splitlines()[-1]
             password = cracked.split(":")[-1] if ":" in cracked else cracked
+            _led_set("found")
             yield f"data: {json.dumps({'type':'found','password':password})}\n\n"
         else:
+            _led_set("idle")
             yield f"data: {json.dumps({'type':'done','found':False})}\n\n"
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream",

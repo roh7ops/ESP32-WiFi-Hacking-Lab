@@ -127,6 +127,12 @@
       <i class="bi bi-broadcast-pin me-2"></i>ESP32 WiFi Lab
     </span>
     <div class="d-flex align-items-center ms-auto gap-3">
+      <!-- LED ESP32 physique (couleur = état actuel) -->
+      <span id="ledDot" title="LED ESP32"
+            style="width:13px;height:13px;border-radius:50%;display:inline-block;
+                   background:#1a1a2e;box-shadow:none;transition:background .25s,box-shadow .25s;
+                   cursor:default"></span>
+      <small id="ledLabel" style="color:#444c56;font-size:11px">LED</small>
       <span class="status-dot off" id="statusDot"></span>
       <small id="statusText" style="color:#cdd9e5">Connexion...</small>
       <small style="color:#79c0ff">{{ serial_port }}</small>
@@ -1025,6 +1031,7 @@ function refreshStatus() {
 }
 refreshStatus();
 setInterval(refreshStatus, 10000);
+// _applyLedUI est appelé après initialisation des constantes LED (voir fin de script)
 
 // ── Helpers terminal ───────────────────────────────────────────────────────
 function stripAnsi(s) {
@@ -1050,6 +1057,7 @@ function termClear(id) {
 let networks = [];
 
 function runScan() {
+  setLed('scanning');
   const prog = document.getElementById('scanProgress');
   const term = document.getElementById('scanTerminal');
   prog.style.display = '';
@@ -1060,10 +1068,10 @@ function runScan() {
   const es = new EventSource('/api/stream/scan');
   es.onmessage = e => {
     const msg = JSON.parse(e.data);
-    if (msg === '__END__') { es.close(); prog.style.display = 'none'; return; }
+    if (msg === '__END__') { es.close(); prog.style.display = 'none'; setLed('idle'); return; }
     termLog('scanTerminal', msg, msg.includes('[+]') ? 'ok' : msg.includes('[x]') ? 'err' : 'info');
   };
-  es.onerror = () => { es.close(); prog.style.display = 'none'; };
+  es.onerror = () => { es.close(); prog.style.display = 'none'; setLed('idle'); };
 
   fetch('/api/scan', {method: 'POST'}).then(r => r.json()).then(d => {
     networks = d.networks || [];
@@ -1072,6 +1080,7 @@ function runScan() {
   }).catch(err => {
     termLog('scanTerminal', 'Erreur: ' + err, 'err');
     prog.style.display = 'none';
+    setLed('idle');
   });
 }
 
@@ -1519,6 +1528,7 @@ function updatePmkidInfo() {
 function startPmkidCapture() {
   if (!_pmkidTarget.bssid) { alert('Sélectionnez un réseau dans le Scanner'); return; }
   _pmkidHashes = [];
+  setLed('capturing');
   switchTab('pmkid');
   termClear('pmkid-terminal');
   document.getElementById('pmkid-diag-card').style.display = 'none';
@@ -1539,6 +1549,7 @@ function startPmkidCapture() {
         document.getElementById('pmkid-hash-section').style.display = '';
         document.getElementById('pmkid-hash-box').value = _pmkidHashes.join('\n');
         parseHashDisplay();
+        setLed('idle');
       }
       return;
     }
@@ -1837,6 +1848,7 @@ function _hashcatSetRunning(on) {
 
 function stopHashcat() {
   if (_hashcatES) { _hashcatES.close(); _hashcatES = null; }
+  setLed('idle');
   fetch('/api/hashcat/stop', {method:'POST'}).then(r => r.json()).then(d => {
     termLog('pmkid-terminal', d.ok ? '[!] Hashcat arrêté.' : '[x] ' + d.msg, d.ok ? 'info' : 'err');
     _hashcatSetRunning(false);
@@ -1861,6 +1873,7 @@ function launchHashcat() {
   termLog('pmkid-terminal', `[*] Wordlist : ${wl}`, 'info');
   document.getElementById('pmkid-result').style.display = 'none';
   _hashcatSetRunning(true);
+  setLed('cracking');
 
   const params = new URLSearchParams({hash, wordlist: wl, device_id, device_type});
   _hashcatES = new EventSource('/api/hashcat/stream?' + params);
@@ -1878,6 +1891,7 @@ function launchHashcat() {
     } else if (msg.type === 'found') {
       _hashcatES.close(); _hashcatES = null;
       _hashcatSetRunning(false);
+      setLed('found');
       termLog('pmkid-terminal', '[+] MOT DE PASSE TROUVÉ : ' + msg.password, 'ok');
       const res = document.getElementById('pmkid-result');
       res.style.display = '';
@@ -1885,10 +1899,12 @@ function launchHashcat() {
     } else if (msg.type === 'done') {
       _hashcatES.close(); _hashcatES = null;
       _hashcatSetRunning(false);
+      setLed('idle');
       termLog('pmkid-terminal', '[!] Non trouvé dans cette wordlist', 'info');
     } else if (msg.type === 'error') {
       _hashcatES.close(); _hashcatES = null;
       _hashcatSetRunning(false);
+      setLed('error');
       termLog('pmkid-terminal', '[x] ' + msg.msg, 'err');
     }
   };
@@ -1897,6 +1913,54 @@ function launchHashcat() {
     _hashcatSetRunning(false);
     termLog('pmkid-terminal', '[x] Connexion SSE perdue', 'err');
   };
+}
+
+// ── LED ESP32 — indicateur physique + visuel navbar ────────────────────────
+
+const _LED_CFG = {
+  off:       { c: '#1a1a2e', s: 'none',                   label: 'OFF',       blink: 0    },
+  idle:      { c: '#1a3a7a', s: '0 0 7px #1a4aaa',        label: 'Veille',    blink: 0    },
+  scanning:  { c: '#2277ff', s: '0 0 10px #2277ff',        label: 'Scan',      blink: 120  },
+  capturing: { c: '#00bbbb', s: '0 0 10px #00bbbb',        label: 'Capture',   blink: 280  },
+  cracking:  { c: '#ff8800', s: '0 0 12px #ff8800',        label: 'Cracking',  blink: 80   },
+  found:     { c: '#00dd44', s: '0 0 14px #00dd44',        label: 'Trouvé !',  blink: 0    },
+  error:     { c: '#ff3333', s: '0 0 10px #ff3333',        label: 'Erreur',    blink: 500  },
+};
+
+let _ledMode    = 'off';
+let _ledBlink   = null;
+
+function setLed(mode) {
+  if (!_LED_CFG[mode]) return;
+  fetch('/api/led/set', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({mode})
+  }).catch(() => {});
+  _applyLedUI(mode);
+}
+
+function _applyLedUI(mode) {
+  _ledMode = mode;
+  const cfg = _LED_CFG[mode] || _LED_CFG.off;
+  const dot = document.getElementById('ledDot');
+  const lbl = document.getElementById('ledLabel');
+  if (!dot) return;
+
+  if (_ledBlink) { clearInterval(_ledBlink); _ledBlink = null; }
+
+  dot.style.background  = cfg.c;
+  dot.style.boxShadow   = cfg.s;
+  lbl.textContent       = cfg.label;
+  lbl.style.color       = cfg.blink ? cfg.c : '#444c56';
+
+  if (cfg.blink) {
+    let on = true;
+    _ledBlink = setInterval(() => {
+      on = !on;
+      dot.style.background = on ? cfg.c    : '#1a1a2e';
+      dot.style.boxShadow  = on ? cfg.s    : 'none';
+    }, cfg.blink);
+  }
 }
 
 // ── Diagnostic handshake incomplet ─────────────────────────────────────────
@@ -1957,6 +2021,9 @@ function retryPmkidAll() {
   };
   es.onerror = () => { es.close(); termLog('pmkid-terminal', '[x] SSE perdu', 'err'); };
 }
+
+// Initialisation LED UI au chargement
+_applyLedUI('idle');
 
 function runDeauthForPmkid() {
   if (!_pmkidTarget.bssid) { alert('Aucune cible sélectionnée'); return; }
