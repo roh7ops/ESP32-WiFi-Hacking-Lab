@@ -127,20 +127,21 @@ def api_led_test():
 
 # ── Helpers mpremote ──────────────────────────────────────────────────────────
 
-def mp_exec(code: str, timeout: int = 15) -> dict:
+_mp_lock = threading.Lock()   # un seul accès série à la fois
+
+def mp_exec(code: str, timeout: int = 12) -> dict:
     """Exécute du code MicroPython sur l'ESP32 via mpremote exec."""
     cmd = [str(MPREMOTE), "connect", PORT_SERIAL, "exec", code]
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, timeout=timeout
-        )
-        out = _strip_ansi(result.stdout.decode("utf-8", errors="replace").strip())
-        err = _strip_ansi(result.stderr.decode("utf-8", errors="replace").strip())
-        return {"ok": result.returncode == 0, "out": out, "err": err}
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "out": "", "err": "Timeout"}
-    except Exception as e:
-        return {"ok": False, "out": "", "err": str(e)}
+    with _mp_lock:
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=timeout)
+            out = _strip_ansi(result.stdout.decode("utf-8", errors="replace").strip())
+            err = _strip_ansi(result.stderr.decode("utf-8", errors="replace").strip())
+            return {"ok": result.returncode == 0, "out": out, "err": err}
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "out": "", "err": "Timeout"}
+        except Exception as e:
+            return {"ok": False, "out": "", "err": str(e)}
 
 
 def mp_stream(code: str, timeout: int = 30):
@@ -164,31 +165,35 @@ def mp_stream(code: str, timeout: int = 30):
     yield "data: \"__END__\"\n\n"
 
 
+_status_cache: dict = {"ts": 0.0, "data": {"connected": False, "firmware": "—", "ram": 0, "custom": False}}
+_STATUS_TTL = 8  # secondes entre deux vraies vérifications
+
 def esp32_status() -> dict:
-    code = (
+    """Vérifie l'ESP32 — résultat mis en cache 8s pour éviter les appels concurrents."""
+    now = time.time()
+    if now - _status_cache["ts"] < _STATUS_TTL:
+        return _status_cache["data"]
+
+    r = mp_exec(
         "import gc, sys\n"
         "gc.collect()\n"
         "print(sys.version)\n"
         "print(gc.mem_free())\n"
-        "import esp; print(hasattr(esp,'wifi_send_pkt_freedom'))\n"
+        "import esp; print(hasattr(esp,'wifi_send_pkt_freedom'))\n",
+        timeout=10
     )
-    # soft-reset avant exec : coupe tous les timers/threads bloquants
-    # (timer LED, scan promiscuous, etc.) et remet l'ESP32 au REPL proprement
-    cmd = [str(MPREMOTE), "connect", PORT_SERIAL, "soft-reset", "exec", code]
-    try:
-        result = subprocess.run(cmd, capture_output=True, timeout=15)
-        out = _strip_ansi(result.stdout.decode("utf-8", errors="replace").strip())
-        if result.returncode != 0 or not out:
-            return {"connected": False, "firmware": "—", "ram": 0, "custom": False}
-    except Exception:
-        return {"connected": False, "firmware": "—", "ram": 0, "custom": False}
-    lines = out.splitlines()
-    return {
-        "connected": True,
-        "firmware": lines[0] if len(lines) > 0 else "—",
-        "ram": int(lines[1]) if len(lines) > 1 and lines[1].isdigit() else 0,
-        "custom": lines[2].strip() == "True" if len(lines) > 2 else False,
-    }
+    if not r["ok"]:
+        data = {"connected": False, "firmware": "—", "ram": 0, "custom": False}
+    else:
+        lines = r["out"].splitlines()
+        data = {
+            "connected": True,
+            "firmware": lines[0] if lines else "—",
+            "ram": int(lines[1]) if len(lines) > 1 and lines[1].isdigit() else 0,
+            "custom": lines[2].strip() == "True" if len(lines) > 2 else False,
+        }
+    _status_cache.update({"ts": time.time(), "data": data})
+    return data
 
 # ── Routes : pages ────────────────────────────────────────────────────────────
 
