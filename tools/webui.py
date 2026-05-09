@@ -165,16 +165,24 @@ def mp_stream(code: str, timeout: int = 30):
 
 
 def esp32_status() -> dict:
-    r = mp_exec(
+    code = (
         "import gc, sys\n"
         "gc.collect()\n"
         "print(sys.version)\n"
         "print(gc.mem_free())\n"
         "import esp; print(hasattr(esp,'wifi_send_pkt_freedom'))\n"
     )
-    if not r["ok"]:
+    # soft-reset avant exec : coupe tous les timers/threads bloquants
+    # (timer LED, scan promiscuous, etc.) et remet l'ESP32 au REPL proprement
+    cmd = [str(MPREMOTE), "connect", PORT_SERIAL, "soft-reset", "exec", code]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=15)
+        out = _strip_ansi(result.stdout.decode("utf-8", errors="replace").strip())
+        if result.returncode != 0 or not out:
+            return {"connected": False, "firmware": "—", "ram": 0, "custom": False}
+    except Exception:
         return {"connected": False, "firmware": "—", "ram": 0, "custom": False}
-    lines = r["out"].splitlines()
+    lines = out.splitlines()
     return {
         "connected": True,
         "firmware": lines[0] if len(lines) > 0 else "—",
