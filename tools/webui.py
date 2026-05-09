@@ -59,11 +59,15 @@ import atexit as _atexit
 def _on_shutdown():
     """Éteint la LED ESP32 proprement à l'arrêt du serveur."""
     try:
-        subprocess.run(
+        proc = subprocess.Popen(
             [str(MPREMOTE), "connect", PORT_SERIAL,
              "exec", "from lib.led_status import off; off()"],
-            capture_output=True, timeout=5
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
+        try:
+            proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill(); proc.communicate()
     except Exception:
         pass
 
@@ -81,15 +85,18 @@ def _led_deploy() -> bool:
     if not LED_MODULE_SRC.exists():
         return False
     try:
-        # Créer /lib si absent
         mp_exec("import os\ntry:\n os.mkdir('lib')\nexcept OSError:\n pass", timeout=5)
-        r = subprocess.run(
+        proc = subprocess.Popen(
             [str(MPREMOTE), "connect", PORT_SERIAL, "fs", "cp",
              str(LED_MODULE_SRC), ":lib/led_status.py"],
-            capture_output=True, timeout=15
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        if r.returncode == 0:
-            _led_deployed = True
+        try:
+            proc.communicate(timeout=15)
+            if proc.returncode == 0:
+                _led_deployed = True
+        except subprocess.TimeoutExpired:
+            proc.kill(); proc.communicate()
     except Exception:
         pass
     return _led_deployed
@@ -133,14 +140,18 @@ def mp_exec(code: str, timeout: int = 12) -> dict:
     """Exécute du code MicroPython sur l'ESP32 via mpremote exec."""
     cmd = [str(MPREMOTE), "connect", PORT_SERIAL, "exec", code]
     with _mp_lock:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            result = subprocess.run(cmd, capture_output=True, timeout=timeout)
-            out = _strip_ansi(result.stdout.decode("utf-8", errors="replace").strip())
-            err = _strip_ansi(result.stderr.decode("utf-8", errors="replace").strip())
-            return {"ok": result.returncode == 0, "out": out, "err": err}
+            stdout, stderr = proc.communicate(timeout=timeout)
+            out = _strip_ansi(stdout.decode("utf-8", errors="replace").strip())
+            err = _strip_ansi(stderr.decode("utf-8", errors="replace").strip())
+            return {"ok": proc.returncode == 0, "out": out, "err": err}
         except subprocess.TimeoutExpired:
+            proc.kill()          # tue mpremote → libère le port
+            proc.communicate()   # vide les pipes
             return {"ok": False, "out": "", "err": "Timeout"}
         except Exception as e:
+            proc.kill()
             return {"ok": False, "out": "", "err": str(e)}
 
 
