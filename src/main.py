@@ -182,5 +182,11 @@ def run():
             warn("Choix invalide")
 
 
-# Lancement automatique si main.py est le point d'entrée
-run()
+# LED idle au démarrage — mpremote peut entrer en REPL librement
+try:
+    from lib.led_status import idle as _led_idle
+    _led_idle()
+except Exception:
+    pass
+
+# run() disponible manuellement : mpremote connect /dev/ttyUSB0 repl
