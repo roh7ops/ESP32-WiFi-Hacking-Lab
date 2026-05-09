@@ -53,6 +53,20 @@ SYSTEM_WORDLISTS = [
 
 app = Flask(__name__)
 
+import atexit as _atexit
+
+@_atexit.register
+def _on_shutdown():
+    """Éteint la LED ESP32 proprement à l'arrêt du serveur."""
+    try:
+        subprocess.run(
+            [str(MPREMOTE), "connect", PORT_SERIAL,
+             "exec", "from lib.led_status import off; off()"],
+            capture_output=True, timeout=5
+        )
+    except Exception:
+        pass
+
 # ── LED Status ESP32 ──────────────────────────────────────────────────────────
 
 _led_deployed = False   # le fichier est sur le flash ESP32, ce flag évite de re-uploader

@@ -78,8 +78,8 @@ def capturing():
     _blink(350)
 
 def cracking():
-    """Clignotement très rapide 80ms — hashcat en cours."""
-    _blink(80)
+    """Clignotement rapide 200ms — hashcat en cours."""
+    _blink(200)
 
 def found():
     """
